@@ -1,0 +1,11 @@
+description = 'Command line interface for running necromancer utilities on a code set'
+
+//Dependency versions managed in ${rootDir}/dependencies.properties
+dependencies {
+	compileOnly 'com.google.code.findbugs:jsr305'
+    
+    compile 'args4j:args4j'
+    compile 'org.slf4j:slf4j-api'
+    
+    runtime 'org.slf4j:slf4j-simple'
+}

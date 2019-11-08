@@ -1,1 +1,3 @@
 rootProject.name = 'necromancer'
+
+include 'necromancer-cli'
