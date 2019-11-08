@@ -11,8 +11,6 @@ plugins {
     id 'org.starchartlabs.flare.multi-module-library' version '0.2.1'
 }
 
-throw new GradleException("Update group property in gradle.properties")
-
 allprojects {
     apply plugin: 'eclipse'
 
@@ -37,9 +35,7 @@ subprojects {
     
     projectMetaData {
         github {
-            repository 'StarChart-Labs', '{project}'
-            
-            throw new GradleException("Project name not updated")
+            repository 'StarChart-Labs', 'necromancer'
         }
         
         licenses {
@@ -70,9 +66,7 @@ subprojects {
     // Add LICENSE so it is included in all JARs, as well as dependent licenses, fulfilling the "distributions include license" requirement
     jar {
 		manifest {
-			attributes("Automatic-Module-Name": "${project.group}.${project.name  - '{project}-'}".replaceAll("-", "."))
-            
-            throw new GradleException("Project name not updated")
+			attributes("Automatic-Module-Name": "${project.group}.${project.name  - 'necromancer-'}".replaceAll("-", "."))
 		}
 	}
     
@@ -110,8 +104,6 @@ subprojects {
     }
 
     bintray {
-        throw new GradleException("repo name not updated")
-        
         publications = [ 'maven' ]
 
         if(!project.hasProperty('remoteDeploy')){
@@ -119,7 +111,7 @@ subprojects {
         }
 
         pkg {
-            repo = '{repo}'
+            repo = 'necromancer'
             name = "${project.name}"
             userOrg = 'starchart-labs'
             licenses = ['MIT']

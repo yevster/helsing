@@ -1,21 +1,11 @@
-# Template Repository - Gradle
-
-This repository provides a basic template for Gradle-based projects
-
-Once created from this template
-- The README must be updated
-- Some basic Gradle adjustments made for name-based operations
-- The creator's name should be added to developers.properties (`username,name`)
-
-
-# TODO Project Name
+# Necromancer
 
 * [Contributing](#contributing)
 * [Legal](#legal)
 * [Reporting Vulnerabilities](#reporting-vulnerabilities)
 * [Projects](#projects)
 
-TODO General description
+Provides utilities for finding unused code within a self-complete application code base
 
 ## Contributing
 
