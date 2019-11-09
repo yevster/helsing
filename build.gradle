@@ -35,7 +35,7 @@ subprojects {
     
     projectMetaData {
         github {
-            repository 'StarChart-Labs', 'necromancer'
+            repository 'StarChart-Labs', 'helsing'
         }
         
         licenses {
@@ -66,7 +66,7 @@ subprojects {
     // Add LICENSE so it is included in all JARs, as well as dependent licenses, fulfilling the "distributions include license" requirement
     jar {
 		manifest {
-			attributes("Automatic-Module-Name": "${project.group}.${project.name  - 'necromancer-'}".replaceAll("-", "."))
+			attributes("Automatic-Module-Name": "${project.group}.${project.name  - 'helsing-'}".replaceAll("-", "."))
 		}
 	}
     
@@ -111,7 +111,7 @@ subprojects {
         }
 
         pkg {
-            repo = 'necromancer'
+            repo = 'helsing'
             name = "${project.name}"
             userOrg = 'starchart-labs'
             licenses = ['MIT']
