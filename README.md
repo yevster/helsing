@@ -1,4 +1,4 @@
-# Necromancer
+# Helsing
 
 * [Contributing](#contributing)
 * [Legal](#legal)
