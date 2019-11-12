@@ -5,6 +5,7 @@ dependencies {
 	compileOnly 'com.google.code.findbugs:jsr305'
     
     compile 'args4j:args4j'
+    compile 'org.ow2.asm:asm'
     compile 'org.slf4j:slf4j-api'
     
     runtime 'org.slf4j:slf4j-simple'

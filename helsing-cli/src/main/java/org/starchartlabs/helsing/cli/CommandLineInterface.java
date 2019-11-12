@@ -8,7 +8,7 @@
  * Contributors:
  *    romeara - initial API and implementation and/or initial documentation
  */
-package org.starchartlabs.necromancer.cli;
+package org.starchartlabs.helsing.cli;
 
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
@@ -18,7 +18,7 @@ import org.kohsuke.args4j.spi.SubCommandHandler;
 import org.kohsuke.args4j.spi.SubCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.starchartlabs.necromancer.cli.command.ClassesCommand;
+import org.starchartlabs.helsing.cli.command.DeadClassesCommand;
 
 public class CommandLineInterface {
 
@@ -27,7 +27,7 @@ public class CommandLineInterface {
 
     @Argument(handler = SubCommandHandler.class)
     @SubCommands({
-            @SubCommand(name = "classes", impl = ClassesCommand.class),
+        @SubCommand(name = DeadClassesCommand.COMMAND_NAME, impl = DeadClassesCommand.class),
     })
     private Runnable command;
 
