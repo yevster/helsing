@@ -58,7 +58,7 @@ public class DeadClassesCommand implements Runnable {
 
             // TODO romeara switch to not-info
             sourceClassNames.stream()
-                    .forEach(name -> logger.debug("Found source class {}", name));
+            .forEach(name -> logger.debug("Found source class {}", name));
 
             if (directoryStyleTrace != null) {
                 // TODO Make [CLASS TRACE] a constant?

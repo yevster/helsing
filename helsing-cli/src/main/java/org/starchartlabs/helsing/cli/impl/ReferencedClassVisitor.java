@@ -16,6 +16,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -29,9 +31,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 // TODO romeara
-//TODO romeara why doesn't this find classes exclusively used as field-references (enum values), or
-// return/arguments (no method invokes on the class)
 public class ReferencedClassVisitor extends ClassVisitor {
+
+    private static final Pattern ARRAY_PATTERN = Pattern.compile("^(\\[)*L(.*);");
 
     /** Logger reference to output information to the application log files */
     private final Logger logger = LoggerFactory.getLogger(getClass());
@@ -70,10 +72,19 @@ public class ReferencedClassVisitor extends ClassVisitor {
         // Register types for returns and arguments
         Type methodType = Type.getMethodType(desc);
 
-        registerCalledClass(methodType.getReturnType().getClassName(), name + "(declared method return)");
+        registerCalledClass(methodType.getReturnType().getInternalName(), name + "(declared method return)");
 
-        for (Type methodArgument : methodType.getArgumentTypes()) {
-            registerCalledClass(methodArgument.getClassName(), name + "(declared method argument)");
+        Stream.of(methodType.getArgumentTypes())
+        .map(Type::getInternalName)
+        .forEach(argumentType -> registerCalledClass(argumentType, name + "(declared method argument)"));
+
+        if (Objects.equals(currentClassName, directoryStyleTrace)) {
+            String argumentTypes = Stream.of(methodType.getArgumentTypes())
+                    .map(Type::getInternalName)
+                    .collect(Collectors.joining(","));
+
+            logger.info("[CLASS TRACE] Found method in class {} ({}:{}:[{}])", currentClassName, name,
+                    methodType.getReturnType().getInternalName(), argumentTypes);
         }
 
         return new ReferencedMethodVisitor(
@@ -92,13 +103,28 @@ public class ReferencedClassVisitor extends ClassVisitor {
     }
 
     private void registerCalledClass(String className, String traceContext) {
-        if (!Objects.equals(currentClassName, className) && sourceClassNames.contains(className)) {
-            referencedClasses.add(className);
+        String effectiveClassName = getEffectiveClassName(className);
 
-            if (Objects.equals(className, directoryStyleTrace)) {
-                logger.info("[CLASS TRACE] Found use of class {} ({})", className, traceContext);
+        if (!Objects.equals(currentClassName, effectiveClassName) && sourceClassNames.contains(effectiveClassName)) {
+            referencedClasses.add(effectiveClassName);
+
+            if (Objects.equals(effectiveClassName, directoryStyleTrace)) {
+                logger.info("[CLASS TRACE] Found use of class {} ({})", effectiveClassName, traceContext);
             }
         }
+    }
+
+    private String getEffectiveClassName(String className) {
+        Matcher matcher = ARRAY_PATTERN.matcher(className);
+
+        String effectiveClassName = className;
+
+        // Handle arrays of class names - an array is still a reference to that class
+        if (matcher.matches()) {
+            effectiveClassName = matcher.group(2);
+        }
+
+        return effectiveClassName;
     }
 
     private class ReferencedMethodVisitor extends MethodVisitor {
@@ -127,10 +153,10 @@ public class ReferencedClassVisitor extends ClassVisitor {
             // TODO romeara generalize with above?
             Type methodType = Type.getMethodType(descriptor);
 
-            registerUse(methodType.getReturnType().getClassName(), name, "method return");
+            registerUse(methodType.getReturnType().getInternalName(), name, "method return");
 
             for (Type methodArgument : methodType.getArgumentTypes()) {
-                registerUse(methodArgument.getClassName(), name, "method argument");
+                registerUse(methodArgument.getInternalName(), name, "method argument");
             }
 
             registerUse(owner, name, "method call");
@@ -149,12 +175,14 @@ public class ReferencedClassVisitor extends ClassVisitor {
                     Type typeArgument = (Type) methodArgument;
 
                     if (typeArgument.getSort() != Type.METHOD) {
-                        registerUse(typeArgument.getClassName(), null, "dynamic method argument type");
+                        registerUse(typeArgument.getInternalName(), null, "dynamic method argument type");
                     }
                 } else if (methodArgument instanceof Handle) {
                     Handle handleArgument = (Handle) methodArgument;
 
                     registerUse(handleArgument.getOwner(), handleArgument.getName(), "dynamic method argument handle");
+
+                    // TODO arguments and such of method handle?
                 } else if (methodArgument instanceof ConstantDynamic) {
                     ConstantDynamic constantDyanmicArgument = (ConstantDynamic) methodArgument;
 
@@ -166,28 +194,23 @@ public class ReferencedClassVisitor extends ClassVisitor {
             }
         }
 
+        @Override
+        public void visitTypeInsn(final int opcode, final String type) {
+            registerUse(type, null, "type instruction");
+        }
+
+        @Override
+        public void visitFieldInsn(final int opcode, final String owner, final String name, final String descriptor) {
+            Type type = Type.getType(descriptor);
+
+            registerUse(type.getInternalName(), null, "field instruction");
+        }
+
         private void registerUse(String className, @Nullable String methodName, String context) {
-            Pattern pattern = Pattern.compile("^(\\[)*L(.*);");
-
-            Matcher matcher = pattern.matcher(className);
-
-            String effectiveClassName = className;
-
-            // Handle arrays of class names - an array is still a reference to that class
-            if (matcher.matches()) {
-                effectiveClassName = matcher.group(2);
-
-                // TODO debugging
-                logger.info("Transformed {} -> {}", className, effectiveClassName);
-            }
-
             // Note: references within the class do not count, as a class referencing itself does not mean it is
             // externally consumed
-            if (!Objects.equals(currentClassName, effectiveClassName)) {
-                classNameConsumer.accept(effectiveClassName,
-                        currentClassName + (methodName != null ? ":" + methodName : "") + " (" + context + ")["
-                                + currentLine + "]");
-            }
+            classNameConsumer.accept(className, currentClassName + (methodName != null ? ":" + methodName : "") + " ("
+                    + context + ")[" + currentLine + "]");
         }
     }
 
