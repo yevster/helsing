@@ -14,6 +14,8 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
@@ -147,12 +149,12 @@ public class ReferencedClassVisitor extends ClassVisitor {
                     Type typeArgument = (Type) methodArgument;
 
                     if (typeArgument.getSort() != Type.METHOD) {
-                        registerUse(typeArgument.getClassName(), name, "dynamic method argument type");
+                        registerUse(typeArgument.getClassName(), null, "dynamic method argument type");
                     }
                 } else if (methodArgument instanceof Handle) {
                     Handle handleArgument = (Handle) methodArgument;
 
-                    registerUse(handleArgument.getOwner(), name, "dynamic method argument handle");
+                    registerUse(handleArgument.getOwner(), handleArgument.getName(), "dynamic method argument handle");
                 } else if (methodArgument instanceof ConstantDynamic) {
                     ConstantDynamic constantDyanmicArgument = (ConstantDynamic) methodArgument;
 
@@ -164,12 +166,27 @@ public class ReferencedClassVisitor extends ClassVisitor {
             }
         }
 
-        private void registerUse(String className, String methodName, String context) {
+        private void registerUse(String className, @Nullable String methodName, String context) {
+            Pattern pattern = Pattern.compile("^(\\[)*L(.*);");
+
+            Matcher matcher = pattern.matcher(className);
+
+            String effectiveClassName = className;
+
+            // Handle arrays of class names - an array is still a reference to that class
+            if (matcher.matches()) {
+                effectiveClassName = matcher.group(2);
+
+                // TODO debugging
+                logger.info("Transformed {} -> {}", className, effectiveClassName);
+            }
+
             // Note: references within the class do not count, as a class referencing itself does not mean it is
             // externally consumed
-            if (!Objects.equals(currentClassName, className)) {
-                classNameConsumer.accept(className,
-                        currentClassName + ":" + methodName + " (" + context + ")[" + currentLine + "]");
+            if (!Objects.equals(currentClassName, effectiveClassName)) {
+                classNameConsumer.accept(effectiveClassName,
+                        currentClassName + (methodName != null ? ":" + methodName : "") + " (" + context + ")["
+                                + currentLine + "]");
             }
         }
     }
