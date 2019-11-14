@@ -6,7 +6,7 @@
  * http://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
- *    romeara - initial API and implementation and/or initial documentation
+ * romeara - initial API and implementation and/or initial documentation
  */
 package org.starchartlabs.helsing.cli.impl;
 
@@ -71,8 +71,8 @@ public class ReferencedClassVisitor extends ClassVisitor {
 
         registerCalledClass(annotationType.getInternalName(), "type annotation");
 
-        // TODO visitor to annotation values
-        return null;
+        return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName,
+                (className, annotationContext) -> registerCalledClass(className, annotationContext));
     }
 
     @Override
@@ -81,8 +81,8 @@ public class ReferencedClassVisitor extends ClassVisitor {
 
         registerCalledClass(annotationType.getInternalName(), "annotation");
 
-        // TODO visitor to annotation values
-        return null;
+        return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName,
+                (className, annotationContext) -> registerCalledClass(className, annotationContext));
     }
 
     @Override
@@ -91,8 +91,8 @@ public class ReferencedClassVisitor extends ClassVisitor {
 
         registerCalledClass(fieldType.getInternalName(), "class field");
 
-        // TODO visitor to annotations
-        return null;
+        return new ReferencedFieldVisitor(getAsmApi(), currentClassName,
+                (className, fieldContext) -> registerCalledClass(className, fieldContext));
     }
 
     @Override
@@ -103,8 +103,8 @@ public class ReferencedClassVisitor extends ClassVisitor {
         registerCalledClass(methodType.getReturnType().getInternalName(), name + "(declared method return)");
 
         Stream.of(methodType.getArgumentTypes())
-        .map(Type::getInternalName)
-        .forEach(argumentType -> registerCalledClass(argumentType, name + "(declared method argument)"));
+                .map(Type::getInternalName)
+                .forEach(argumentType -> registerCalledClass(argumentType, name + "(declared method argument)"));
 
         // Submit for tracing
         String argumentTypes = Stream.of(methodType.getArgumentTypes())
@@ -156,7 +156,7 @@ public class ReferencedClassVisitor extends ClassVisitor {
         return effectiveClassName;
     }
 
-    private class ReferencedMethodVisitor extends MethodVisitor {
+    private static class ReferencedMethodVisitor extends MethodVisitor {
 
         private final String currentClassName;
 
@@ -250,6 +250,87 @@ public class ReferencedClassVisitor extends ClassVisitor {
             String method = (methodName != null ? ":" + methodName : "");
 
             return Strings.format("%s%s (%s)[%s]", currentClassName, method, context, currentLine);
+        }
+
+    }
+
+    private static class ReferencedAnnotationVisitor extends AnnotationVisitor {
+
+        private final String currentClassName;
+
+        private final BiConsumer<String, String> classNameConsumer;
+
+        public ReferencedAnnotationVisitor(int api, String currentClassName, BiConsumer<String, String> classNameConsumer) {
+            super(api);
+
+            this.currentClassName = Objects.requireNonNull(currentClassName);
+            this.classNameConsumer = Objects.requireNonNull(classNameConsumer);
+        }
+
+        @Override
+        public void visit(String name, Object value) {
+            if (value instanceof Type) {
+                Type valueType = (Type) value;
+
+                String context = Strings.format("%s annotation '%s' value", currentClassName, name);
+                classNameConsumer.accept(valueType.getInternalName(), context);
+            }
+
+            super.visit(name, value);
+        }
+
+        @Override
+        public void visitEnum(String name, String descriptor, String value) {
+            Type enumType = Type.getType(descriptor);
+
+            String context = Strings.format("%s annotation '%s' enum value (%s)", currentClassName, name, value);
+            classNameConsumer.accept(enumType.getInternalName(), context);
+
+            super.visitEnum(name, descriptor, value);
+        }
+
+        @Override
+        public AnnotationVisitor visitArray(String name) {
+            return this;
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String name, String descriptor) {
+            Type annotationType = Type.getType(descriptor);
+
+            String context = Strings.format("%s nexted annotation", currentClassName);
+            classNameConsumer.accept(annotationType.getInternalName(), context);
+
+            return this;
+        }
+
+    }
+
+    private static class ReferencedFieldVisitor extends FieldVisitor {
+
+        private final String currentClassName;
+
+        private final BiConsumer<String, String> classNameConsumer;
+
+        public ReferencedFieldVisitor(int api, String currentClassName, BiConsumer<String, String> classNameConsumer) {
+            super(api);
+
+            this.currentClassName = Objects.requireNonNull(currentClassName);
+            this.classNameConsumer = Objects.requireNonNull(classNameConsumer);
+        }
+
+        public int getAsmApi() {
+            return api;
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+            return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName, classNameConsumer);
+        }
+
+        @Override
+        public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+            return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName, classNameConsumer);
         }
 
     }
