@@ -1,3 +1,5 @@
+apply plugin: 'it.gianluz.capsule'
+
 description = 'Command line interface for running necromancer utilities on a code set'
 
 //Dependency versions managed in ${rootDir}/dependencies.properties
@@ -7,6 +9,33 @@ dependencies {
     compile 'args4j:args4j'
     compile 'org.ow2.asm:asm'
     compile 'org.slf4j:slf4j-api'
+    compile 'org.starchartlabs.alloy:alloy-core'
     
     runtime 'org.slf4j:slf4j-simple'
+}
+
+//Apply module naming to all projects
+//Add LICENSE so it is included in all JARs, as well as dependent licenses, fulfilling the "distributions include license" requirement
+jar {
+    from("${rootDir}"){ include 'LICENSE' }
+}
+
+//All projects should provide source code and javadoc, and upload these with any released artifacts
+sourcesJar {
+    from("${rootDir}"){ include 'LICENSE' }
+}
+
+javadocJar{
+    from("${rootDir}"){ include 'LICENSE' }
+}
+
+task distCapsule(type: FatCapsule) {
+    applicationClass 'org.starchartlabs.helsing.cli.CommandLineInterface'
+    embedConfiguration configurations.runtime
+}
+
+tasks.assemble.dependsOn distCapsule
+
+artifacts {
+    archives distCapsule
 }

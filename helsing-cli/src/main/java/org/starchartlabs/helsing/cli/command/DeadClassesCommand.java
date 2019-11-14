@@ -17,12 +17,15 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import org.kohsuke.args4j.Option;
 import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.starchartlabs.helsing.cli.impl.AvailableSourceVisitor;
 import org.starchartlabs.helsing.cli.impl.BulkClassFileVisitor;
+import org.starchartlabs.helsing.cli.impl.ClassUseTracer;
 import org.starchartlabs.helsing.cli.impl.ReferencedClassVisitor;
 
 //TODO romeara
@@ -45,9 +48,7 @@ public class DeadClassesCommand implements Runnable {
 
     @Override
     public void run() {
-        String directoryStyleTrace = Optional.ofNullable(traceClassName)
-                .map(trace -> trace.replace('.', '/'))
-                .orElse(null);
+        Tracer tracer = new Tracer(traceClassName, traceClassName);
 
         try {
             // Walk class files and compile a full list of available source
@@ -56,20 +57,14 @@ public class DeadClassesCommand implements Runnable {
 
             Set<String> sourceClassNames = sourceVisitor.getSourceClassNames();
 
-            // TODO romeara switch to not-info
             sourceClassNames.stream()
             .forEach(name -> logger.debug("Found source class {}", name));
 
-            if (directoryStyleTrace != null) {
-                // TODO Make [CLASS TRACE] a constant?
-                sourceClassNames.stream()
-                .filter(name -> Objects.equals(directoryStyleTrace, name))
-                .forEach(name -> logger.info("[CLASS TRACE] Found source class {}", name));
-            }
+            sourceClassNames.stream()
+                    .forEach(name -> tracer.traceClassFeature(name, "(source file found)"));
 
             // Find references to known source files
-            ReferencedClassVisitor referenceVisitor = new ReferencedClassVisitor(ASM_API, sourceClassNames,
-                    directoryStyleTrace);
+            ReferencedClassVisitor referenceVisitor = new ReferencedClassVisitor(ASM_API, sourceClassNames, tracer);
             Files.walkFileTree(directory.toPath(), new BulkClassFileVisitor(referenceVisitor));
 
             sourceClassNames.removeAll(referenceVisitor.getReferencedClasses());
@@ -78,6 +73,46 @@ public class DeadClassesCommand implements Runnable {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static final class Tracer implements ClassUseTracer {
+
+        /** Logger reference to output information to the application log files */
+        private final Logger logger = LoggerFactory.getLogger(getClass());
+
+        // Class to trace when found, and what it contains
+        @Nullable
+        private final String structureTraceClass;
+
+        // Class to trace discovered uses of
+        @Nullable
+        private final String useTraceClass;
+
+        public Tracer(String structureTraceClass, String useTraceClass) {
+            this.structureTraceClass = Optional.ofNullable(structureTraceClass)
+                    .map(trace -> trace.replace('.', '/'))
+                    .orElse(null);
+            ;
+                    this.useTraceClass = Optional.ofNullable(useTraceClass)
+                            .map(trace -> trace.replace('.', '/'))
+                            .orElse(null);
+            ;
+        }
+
+        @Override
+        public void traceClassFeature(String className, String feature) {
+            if (Objects.equals(structureTraceClass, className)) {
+                logger.info("[SOURCE] {}: {}", className, feature);
+            }
+        }
+
+        @Override
+        public void traceClassUse(String className, String usedIn) {
+            if (Objects.equals(useTraceClass, className)) {
+                logger.info("[USE] {}:{}", className, usedIn);
+            }
+        }
+
     }
 
 }

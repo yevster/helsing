@@ -21,37 +21,35 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ConstantDynamic;
+import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.objectweb.asm.TypePath;
+import org.starchartlabs.alloy.core.Strings;
 
 // TODO romeara
 public class ReferencedClassVisitor extends ClassVisitor {
 
     private static final Pattern ARRAY_PATTERN = Pattern.compile("^(\\[)*L(.*);");
 
-    /** Logger reference to output information to the application log files */
-    private final Logger logger = LoggerFactory.getLogger(getClass());
-
     private final Set<String> sourceClassNames;
 
     private final Set<String> referencedClasses;
 
-    @Nullable
-    private final String directoryStyleTrace;
+    private final ClassUseTracer classUseTracer;
 
     private String currentClassName;
 
-    public ReferencedClassVisitor(int api, Set<String> sourceClassNames, String directoryStyleTrace) {
+    public ReferencedClassVisitor(int api, Set<String> sourceClassNames, ClassUseTracer classUseTracer) {
         super(api);
 
         this.sourceClassNames = Objects.requireNonNull(sourceClassNames);
-        this.directoryStyleTrace = directoryStyleTrace;
+        this.classUseTracer = Objects.requireNonNull(classUseTracer);
 
         referencedClasses = new HashSet<>();
     }
@@ -68,6 +66,36 @@ public class ReferencedClassVisitor extends ClassVisitor {
     }
 
     @Override
+    public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+        Type annotationType = Type.getType(descriptor);
+
+        registerCalledClass(annotationType.getInternalName(), "type annotation");
+
+        // TODO visitor to annotation values
+        return null;
+    }
+
+    @Override
+    public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+        Type annotationType = Type.getType(descriptor);
+
+        registerCalledClass(annotationType.getInternalName(), "annotation");
+
+        // TODO visitor to annotation values
+        return null;
+    }
+
+    @Override
+    public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
+        Type fieldType = Type.getType(descriptor);
+
+        registerCalledClass(fieldType.getInternalName(), "class field");
+
+        // TODO visitor to annotations
+        return null;
+    }
+
+    @Override
     public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
         // Register types for returns and arguments
         Type methodType = Type.getMethodType(desc);
@@ -78,14 +106,15 @@ public class ReferencedClassVisitor extends ClassVisitor {
         .map(Type::getInternalName)
         .forEach(argumentType -> registerCalledClass(argumentType, name + "(declared method argument)"));
 
-        if (Objects.equals(currentClassName, directoryStyleTrace)) {
-            String argumentTypes = Stream.of(methodType.getArgumentTypes())
-                    .map(Type::getInternalName)
-                    .collect(Collectors.joining(","));
+        // Submit for tracing
+        String argumentTypes = Stream.of(methodType.getArgumentTypes())
+                .map(Type::getInternalName)
+                .collect(Collectors.joining(","));
 
-            logger.info("[CLASS TRACE] Found method in class {} ({}:{}:[{}])", currentClassName, name,
-                    methodType.getReturnType().getInternalName(), argumentTypes);
-        }
+        String feature = Strings.format("(%s:%s:[%s])", name, methodType.getReturnType().getInternalName(),
+                argumentTypes);
+
+        classUseTracer.traceClassFeature(currentClassName, feature);
 
         return new ReferencedMethodVisitor(
                 getAsmApi(),
@@ -105,12 +134,12 @@ public class ReferencedClassVisitor extends ClassVisitor {
     private void registerCalledClass(String className, String traceContext) {
         String effectiveClassName = getEffectiveClassName(className);
 
+        // Note: references within the class do not count, as a class referencing itself does not mean it is externally
+        // consumed
         if (!Objects.equals(currentClassName, effectiveClassName) && sourceClassNames.contains(effectiveClassName)) {
             referencedClasses.add(effectiveClassName);
 
-            if (Objects.equals(effectiveClassName, directoryStyleTrace)) {
-                logger.info("[CLASS TRACE] Found use of class {} ({})", effectiveClassName, traceContext);
-            }
+            classUseTracer.traceClassUse(effectiveClassName, String.format("(%s)", traceContext));
         }
     }
 
@@ -150,16 +179,7 @@ public class ReferencedClassVisitor extends ClassVisitor {
 
         @Override
         public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-            // TODO romeara generalize with above?
-            Type methodType = Type.getMethodType(descriptor);
-
-            registerUse(methodType.getReturnType().getInternalName(), name, "method return");
-
-            for (Type methodArgument : methodType.getArgumentTypes()) {
-                registerUse(methodArgument.getInternalName(), name, "method argument");
-            }
-
-            registerUse(owner, name, "method call");
+            registerMethod(owner, name, descriptor);
         }
 
         @Override
@@ -168,50 +188,70 @@ public class ReferencedClassVisitor extends ClassVisitor {
                 final String descriptor,
                 final Handle bootstrapMethodHandle,
                 final Object... bootstrapMethodArguments) {
-            registerUse(bootstrapMethodHandle.getOwner(), name, "dynamic method handle");
+            classNameConsumer.accept(bootstrapMethodHandle.getOwner(),
+                    getFullContext(bootstrapMethodHandle.getName(), "dynamic method handle"));
 
             for (Object methodArgument : bootstrapMethodArguments) {
-                if (methodArgument instanceof Type) {
-                    Type typeArgument = (Type) methodArgument;
-
-                    if (typeArgument.getSort() != Type.METHOD) {
-                        registerUse(typeArgument.getInternalName(), null, "dynamic method argument type");
-                    }
-                } else if (methodArgument instanceof Handle) {
-                    Handle handleArgument = (Handle) methodArgument;
-
-                    registerUse(handleArgument.getOwner(), handleArgument.getName(), "dynamic method argument handle");
-
-                    // TODO arguments and such of method handle?
-                } else if (methodArgument instanceof ConstantDynamic) {
-                    ConstantDynamic constantDyanmicArgument = (ConstantDynamic) methodArgument;
-
-                    registerUse(constantDyanmicArgument.getBootstrapMethod().getOwner(), name,
-                            "dynamic argument constant");
-
-                    // TODO arguments of the constant-dynamic?
-                }
+                registerMethodArgument(methodArgument);
             }
         }
 
         @Override
         public void visitTypeInsn(final int opcode, final String type) {
-            registerUse(type, null, "type instruction");
+            classNameConsumer.accept(type, getFullContext(null, "type instruction"));
         }
 
         @Override
         public void visitFieldInsn(final int opcode, final String owner, final String name, final String descriptor) {
             Type type = Type.getType(descriptor);
 
-            registerUse(type.getInternalName(), null, "field instruction");
+            classNameConsumer.accept(type.getInternalName(), getFullContext(null, "field instruction"));
         }
 
-        private void registerUse(String className, @Nullable String methodName, String context) {
-            // Note: references within the class do not count, as a class referencing itself does not mean it is
-            // externally consumed
-            classNameConsumer.accept(className, currentClassName + (methodName != null ? ":" + methodName : "") + " ("
-                    + context + ")[" + currentLine + "]");
+        private void registerMethod(String owner, String name, String descriptor) {
+            Type methodType = Type.getMethodType(descriptor);
+
+            classNameConsumer.accept(methodType.getReturnType().getInternalName(),
+                    getFullContext(name, "method return"));
+
+            for (Type methodArgument : methodType.getArgumentTypes()) {
+                classNameConsumer.accept(methodArgument.getInternalName(), getFullContext(name, "method argument"));
+            }
+
+            classNameConsumer.accept(owner, getFullContext(name, "method call"));
         }
+
+        private void registerMethodArgument(Object methodArgument) {
+            if (methodArgument instanceof Type) {
+                Type typeArgument = (Type) methodArgument;
+
+                if (typeArgument.getSort() != Type.METHOD) {
+                    classNameConsumer.accept(typeArgument.getInternalName(),
+                            getFullContext(null, "dynamic method argument type"));
+                }
+            } else if (methodArgument instanceof Handle) {
+                Handle handleArgument = (Handle) methodArgument;
+
+                registerMethod(handleArgument.getOwner(), handleArgument.getName(), handleArgument.getDesc());
+            } else if (methodArgument instanceof ConstantDynamic) {
+                ConstantDynamic constantDyanmicArgument = (ConstantDynamic) methodArgument;
+
+                registerMethod(constantDyanmicArgument.getBootstrapMethod().getOwner(),
+                        constantDyanmicArgument.getBootstrapMethod().getName(),
+                        constantDyanmicArgument.getBootstrapMethod().getDesc());
+
+                for (int i = 0; i < constantDyanmicArgument.getBootstrapMethodArgumentCount(); i++) {
+                    registerMethodArgument(constantDyanmicArgument.getBootstrapMethodArgument(i));
+                }
+            }
+        }
+
+        private String getFullContext(@Nullable String methodName, String context) {
+            String method = (methodName != null ? ":" + methodName : "");
+
+            return Strings.format("%s%s (%s)[%s]", currentClassName, method, context, currentLine);
+        }
+
     }
 
 }
