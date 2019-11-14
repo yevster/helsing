@@ -6,20 +6,28 @@
  * http://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
- *    romeara - initial API and implementation and/or initial documentation
+ * romeara - initial API and implementation and/or initial documentation
  */
 package org.starchartlabs.helsing.cli.command;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.spi.StringArrayOptionHandler;
 import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +36,7 @@ import org.starchartlabs.helsing.cli.impl.BulkClassFileVisitor;
 import org.starchartlabs.helsing.cli.impl.ClassUseTracer;
 import org.starchartlabs.helsing.cli.impl.ReferencedClassVisitor;
 
-//TODO romeara
+// TODO romeara
 public class DeadClassesCommand implements Runnable {
 
     public static final String COMMAND_NAME = "dead-classes";
@@ -38,12 +46,14 @@ public class DeadClassesCommand implements Runnable {
     /** Logger reference to output information to the application log files */
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
-    @Option(name = "-d", aliases = { "--directory" }, required = true,
-            usage = "Specifies the directory containing the classes to evaluate. Required")
+    @Option(name = "-d", aliases = { "--directory" }, required = true, usage = "Specifies the directory containing the classes to evaluate. Required")
     private File directory;
 
-    @Option(name = "-t", aliases = { "--trace" }, required = false,
-            usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
+    @Option(name = "-e", aliases = { "--exclude" }, handler = StringArrayOptionHandler.class, required = false)
+    private String[] excludedPatterns;
+
+    @Option(name = "-t", aliases = {
+            "--trace" }, required = false, usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
     private String traceClassName;
 
     @Override
@@ -58,7 +68,13 @@ public class DeadClassesCommand implements Runnable {
             Set<String> sourceClassNames = sourceVisitor.getSourceClassNames();
 
             sourceClassNames.stream()
-            .forEach(name -> logger.debug("Found source class {}", name));
+                    .forEach(name -> logger.debug("Found source class {}", name));
+
+            Predicate<String> exclusionFilter = getExclusionFilter();
+
+            sourceClassNames = sourceClassNames.stream()
+                    .filter(exclusionFilter)
+                    .collect(Collectors.toSet());
 
             sourceClassNames.stream()
                     .forEach(name -> tracer.traceClassFeature(name, "(source file found)"));
@@ -73,6 +89,16 @@ public class DeadClassesCommand implements Runnable {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private Predicate<String> getExclusionFilter() {
+        Collection<PathMatcher> matchers = Stream.of(Optional.ofNullable(excludedPatterns).orElse(new String[0]))
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
+                .collect(Collectors.toList());
+
+        return (className -> !matchers.stream().anyMatch(matcher -> matcher.matches(Paths.get(className.trim().toLowerCase()))));
     }
 
     private static final class Tracer implements ClassUseTracer {
@@ -93,9 +119,9 @@ public class DeadClassesCommand implements Runnable {
                     .map(trace -> trace.replace('.', '/'))
                     .orElse(null);
             ;
-                    this.useTraceClass = Optional.ofNullable(useTraceClass)
-                            .map(trace -> trace.replace('.', '/'))
-                            .orElse(null);
+            this.useTraceClass = Optional.ofNullable(useTraceClass)
+                    .map(trace -> trace.replace('.', '/'))
+                    .orElse(null);
             ;
         }
 
