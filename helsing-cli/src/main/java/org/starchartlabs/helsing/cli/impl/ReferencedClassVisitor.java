@@ -298,7 +298,7 @@ public class ReferencedClassVisitor extends ClassVisitor {
         public AnnotationVisitor visitAnnotation(String name, String descriptor) {
             Type annotationType = Type.getType(descriptor);
 
-            String context = Strings.format("%s nexted annotation", currentClassName);
+            String context = Strings.format("%s nested annotation", currentClassName);
             classNameConsumer.accept(annotationType.getInternalName(), context);
 
             return this;
