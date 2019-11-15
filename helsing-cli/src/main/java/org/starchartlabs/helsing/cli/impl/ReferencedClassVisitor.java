@@ -63,6 +63,12 @@ public class ReferencedClassVisitor extends ClassVisitor {
         currentClassName = name;
 
         registerCalledClass(superName, "Super of " + name);
+
+        if (interfaces != null) {
+            for (String interfaceName : interfaces) {
+                registerCalledClass(interfaceName, "Implemented by " + name);
+            }
+        }
     }
 
     @Override
@@ -103,8 +109,14 @@ public class ReferencedClassVisitor extends ClassVisitor {
         registerCalledClass(methodType.getReturnType().getInternalName(), name + "(declared method return)");
 
         Stream.of(methodType.getArgumentTypes())
-                .map(Type::getInternalName)
-                .forEach(argumentType -> registerCalledClass(argumentType, name + "(declared method argument)"));
+        .map(Type::getInternalName)
+        .forEach(argumentType -> registerCalledClass(argumentType, name + "(declared method argument)"));
+
+        if (exceptions != null) {
+            for (String exceptionName : exceptions) {
+                registerCalledClass(exceptionName, "Thrown by " + name);
+            }
+        }
 
         // Submit for tracing
         String argumentTypes = Stream.of(methodType.getArgumentTypes())
@@ -172,6 +184,10 @@ public class ReferencedClassVisitor extends ClassVisitor {
             currentLine = 0;
         }
 
+        public int getAsmApi() {
+            return api;
+        }
+
         @Override
         public void visitLineNumber(final int line, final Label start) {
             currentLine = line;
@@ -206,6 +222,44 @@ public class ReferencedClassVisitor extends ClassVisitor {
             Type type = Type.getType(descriptor);
 
             classNameConsumer.accept(type.getInternalName(), getFullContext(null, "field instruction"));
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+            Type annotationType = Type.getType(descriptor);
+
+            classNameConsumer.accept(annotationType.getInternalName(), "annotation");
+
+            return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName, classNameConsumer);
+        }
+
+        @Override
+        public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor,
+                boolean visible) {
+            Type annotationType = Type.getType(descriptor);
+
+            classNameConsumer.accept(annotationType.getInternalName(), "type annotation");
+
+            return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName, classNameConsumer);
+        }
+
+        @Override
+        public AnnotationVisitor visitParameterAnnotation(int parameter, String descriptor, boolean visible) {
+            Type annotationType = Type.getType(descriptor);
+
+            classNameConsumer.accept(annotationType.getInternalName(), "parameter annotation");
+
+            return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName, classNameConsumer);
+        }
+
+        @Override
+        public AnnotationVisitor visitLocalVariableAnnotation(int typeRef, TypePath typePath, Label[] start,
+                Label[] end, int[] index, String descriptor, boolean visible) {
+            Type annotationType = Type.getType(descriptor);
+
+            classNameConsumer.accept(annotationType.getInternalName(), "local variable annotation");
+
+            return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName, classNameConsumer);
         }
 
         private void registerMethod(String owner, String name, String descriptor) {
@@ -325,11 +379,19 @@ public class ReferencedClassVisitor extends ClassVisitor {
 
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+            Type annotationType = Type.getType(descriptor);
+
+            classNameConsumer.accept(annotationType.getInternalName(), "annotation");
+
             return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName, classNameConsumer);
         }
 
         @Override
         public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+            Type annotationType = Type.getType(descriptor);
+
+            classNameConsumer.accept(annotationType.getInternalName(), "type annotation");
+
             return new ReferencedAnnotationVisitor(getAsmApi(), currentClassName, classNameConsumer);
         }
 
