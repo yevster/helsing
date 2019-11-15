@@ -8,3 +8,4 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 - Ability to analyze built source for unreferenced classes
 - Added annotation usage of classes to dead class analysis
+- Added ability to filter classes analyzed
