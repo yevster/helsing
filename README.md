@@ -13,7 +13,7 @@ Information for how to contribute can be found in [the contribution guidelines](
 
 ## Use
 
-Helsing is currently in initial (alpha) development. In current provides a single command, `dead-class`, which analyzes `*.class` files within an application and determines which, if any, are not currently referenced within the available source
+Helsing is currently in initial (alpha) development. In current provides a single command, `dead-classes`, which analyzes `*.class` and `*.java` files within an application and determines which, if any, are not currently referenced within the available source
 
 To use, get the standalone jar from the latest alpha tag, and run
 
@@ -21,7 +21,7 @@ To use, get the standalone jar from the latest alpha tag, and run
 java -jar <jar name> dead-classes --directory <project directory>
 ```
 
-on a built project (built meaning the project directory contains compiled *.class files). Additionally, the `--trace` argument may be given a full-qualified class name, which will log additional information about the structure discovered for that class (if a use of another class isn't being detected within it), an the discovered uses of that class
+on a built project (built meaning the project directory contains compiled `*.class` files). Additionally, the `--trace` argument may be given a full-qualified class name, which will log additional information about the structure discovered for that class (if a use of another class isn't being detected within it), an the discovered uses of that class
 
 ## Legal
 
