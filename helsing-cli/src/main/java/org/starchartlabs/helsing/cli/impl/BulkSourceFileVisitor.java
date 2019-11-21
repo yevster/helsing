@@ -82,10 +82,6 @@ public class BulkSourceFileVisitor extends SimpleFileVisitor<Path> {
                 if (pattern.matcher(contents).matches()) {
                     sourceClasses.remove(allowedGeneric);
                     foundClassConsumer.accept(allowedGeneric);
-                } else if (allowedGeneric.contains("Constants")) {
-                    System.out.println(contents);
-                    System.out.println("Regex didn't match pattern: " + pattern.pattern());
-                    System.out.println("Contains: " + contents.contains(getSimpleName(allowedGeneric)));
                 }
             }
         }

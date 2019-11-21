@@ -47,14 +47,16 @@ public class DeadClassesCommand implements Runnable {
     /** Logger reference to output information to the application log files */
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
-    @Option(name = "-d", aliases = { "--directory" }, required = true, usage = "Specifies the directory containing the classes to evaluate. Required")
+    @Option(name = "-d", aliases = { "--directory" }, required = true,
+            usage = "Specifies the directory containing the classes to evaluate. Required")
     private File directory;
 
     @Option(name = "-e", aliases = { "--exclude" }, handler = StringArrayOptionHandler.class, required = false)
     private String[] excludedPatterns;
 
     @Option(name = "-t", aliases = {
-    "--trace" }, required = false, usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
+            "--trace" }, required = false,
+            usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
     private String traceClassName;
 
     @Override
@@ -62,6 +64,8 @@ public class DeadClassesCommand implements Runnable {
         Tracer tracer = new Tracer(traceClassName, traceClassName);
 
         try {
+            logger.info("Beginning analysis of {}", directory);
+
             // Walk class files and compile a full list of available source
             AvailableSourceVisitor sourceVisitor = new AvailableSourceVisitor(ASM_API);
             Files.walkFileTree(directory.toPath(), new BulkClassFileVisitor(sourceVisitor));
@@ -69,7 +73,7 @@ public class DeadClassesCommand implements Runnable {
             Set<String> sourceClassNames = sourceVisitor.getSourceClassNames();
 
             sourceClassNames.stream()
-            .forEach(name -> logger.debug("Found source class {}", name));
+                    .forEach(name -> logger.debug("Found source class {}", name));
 
             Predicate<String> exclusionFilter = getExclusionFilter();
 
@@ -78,7 +82,9 @@ public class DeadClassesCommand implements Runnable {
                     .collect(Collectors.toSet());
 
             sourceClassNames.stream()
-            .forEach(name -> tracer.traceClassFeature(name, "(source file found)"));
+                    .forEach(name -> tracer.traceClassFeature(name, "(source file found)"));
+
+            logger.info("{} source classes found to evaluate for uses within the code base", sourceClassNames.size());
 
             // Find references to known source files
             ReferencedClassVisitor referenceVisitor = new ReferencedClassVisitor(ASM_API, sourceClassNames, tracer);
@@ -86,13 +92,20 @@ public class DeadClassesCommand implements Runnable {
 
             sourceClassNames.removeAll(referenceVisitor.getReferencedClasses());
 
-            // TODO If there are still dead classes, try AST parsing for constant references
+            // If there are still dead classes, try AST parsing for constant references
             if (!sourceClassNames.isEmpty()) {
+                logger.info(
+                        "Classes not referenced by method found - running in-depth analysis for other reference types");
+
                 Files.walkFileTree(directory.toPath(),
                         new BulkSourceFileVisitor(sourceClassNames, sourceClassNames::remove));
             }
 
-            sourceClassNames.forEach(name -> logger.info("No references found to class {}", name));
+            logger.info("Found {} classes with no detected references", sourceClassNames.size());
+
+            sourceClassNames.stream()
+                    .sorted()
+                    .forEach(name -> logger.info("No references found to class {}", name));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -105,7 +118,8 @@ public class DeadClassesCommand implements Runnable {
                 .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
                 .collect(Collectors.toList());
 
-        return (className -> !matchers.stream().anyMatch(matcher -> matcher.matches(Paths.get(className.trim().toLowerCase()))));
+        return (className -> !matchers.stream()
+                .anyMatch(matcher -> matcher.matches(Paths.get(className.trim().toLowerCase()))));
     }
 
     private static final class Tracer implements ClassUseTracer {
