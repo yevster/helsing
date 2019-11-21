@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.starchartlabs.helsing.cli.impl.AvailableSourceVisitor;
 import org.starchartlabs.helsing.cli.impl.BulkClassFileVisitor;
+import org.starchartlabs.helsing.cli.impl.BulkSourceFileVisitor;
 import org.starchartlabs.helsing.cli.impl.ClassUseTracer;
 import org.starchartlabs.helsing.cli.impl.ReferencedClassVisitor;
 
@@ -53,7 +54,7 @@ public class DeadClassesCommand implements Runnable {
     private String[] excludedPatterns;
 
     @Option(name = "-t", aliases = {
-            "--trace" }, required = false, usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
+    "--trace" }, required = false, usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
     private String traceClassName;
 
     @Override
@@ -68,7 +69,7 @@ public class DeadClassesCommand implements Runnable {
             Set<String> sourceClassNames = sourceVisitor.getSourceClassNames();
 
             sourceClassNames.stream()
-                    .forEach(name -> logger.debug("Found source class {}", name));
+            .forEach(name -> logger.debug("Found source class {}", name));
 
             Predicate<String> exclusionFilter = getExclusionFilter();
 
@@ -77,13 +78,19 @@ public class DeadClassesCommand implements Runnable {
                     .collect(Collectors.toSet());
 
             sourceClassNames.stream()
-                    .forEach(name -> tracer.traceClassFeature(name, "(source file found)"));
+            .forEach(name -> tracer.traceClassFeature(name, "(source file found)"));
 
             // Find references to known source files
             ReferencedClassVisitor referenceVisitor = new ReferencedClassVisitor(ASM_API, sourceClassNames, tracer);
             Files.walkFileTree(directory.toPath(), new BulkClassFileVisitor(referenceVisitor));
 
             sourceClassNames.removeAll(referenceVisitor.getReferencedClasses());
+
+            // TODO If there are still dead classes, try AST parsing for constant references
+            if (!sourceClassNames.isEmpty()) {
+                Files.walkFileTree(directory.toPath(),
+                        new BulkSourceFileVisitor(sourceClassNames, sourceClassNames::remove));
+            }
 
             sourceClassNames.forEach(name -> logger.info("No references found to class {}", name));
         } catch (IOException e) {

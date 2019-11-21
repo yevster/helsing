@@ -7,6 +7,7 @@ dependencies {
 	compileOnly 'com.google.code.findbugs:jsr305'
     
     compile 'args4j:args4j'
+    compile 'com.github.javaparser:javaparser-core'
     compile 'org.ow2.asm:asm'
     compile 'org.slf4j:slf4j-api'
     compile 'org.starchartlabs.alloy:alloy-core'
