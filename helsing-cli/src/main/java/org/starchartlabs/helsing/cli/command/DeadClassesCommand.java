@@ -11,16 +11,9 @@
 package org.starchartlabs.helsing.cli.command;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
-import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -28,21 +21,15 @@ import javax.annotation.Nullable;
 
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.spi.StringArrayOptionHandler;
-import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.starchartlabs.helsing.cli.impl.AvailableSourceVisitor;
-import org.starchartlabs.helsing.cli.impl.BulkClassFileVisitor;
-import org.starchartlabs.helsing.cli.impl.BulkSourceFileVisitor;
 import org.starchartlabs.helsing.cli.impl.ClassUseTracer;
-import org.starchartlabs.helsing.cli.impl.ReferencedClassVisitor;
+import org.starchartlabs.helsing.cli.impl.DeadClassDetector;
 
 // TODO romeara
 public class DeadClassesCommand implements Runnable {
 
     public static final String COMMAND_NAME = "dead-classes";
-
-    private static final int ASM_API = Opcodes.ASM7;
 
     /** Logger reference to output information to the application log files */
     private final Logger logger = LoggerFactory.getLogger(getClass());
@@ -51,75 +38,28 @@ public class DeadClassesCommand implements Runnable {
             usage = "Specifies the directory containing the classes to evaluate. Required")
     private File directory;
 
-    @Option(name = "-e", aliases = { "--exclude" }, handler = StringArrayOptionHandler.class, required = false)
-    private String[] excludedPatterns;
+    @Option(name = "-x", aliases = { "--external" }, handler = StringArrayOptionHandler.class, required = false,
+            usage = "Specifies any classes which are intended for use outside the current context and should not be marked as 'dead'")
+    private String[] externalApiPatterns;
 
     @Option(name = "-t", aliases = {
-            "--trace" }, required = false,
+    "--trace" }, required = false,
             usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
     private String traceClassName;
 
     @Override
     public void run() {
         Tracer tracer = new Tracer(traceClassName, traceClassName);
+        DeadClassDetector detector = new DeadClassDetector(tracer);
 
-        try {
-            logger.info("Beginning analysis of {}", directory);
+        Set<String> externalApiClasses = Stream.of(Optional.ofNullable(externalApiPatterns).orElse(new String[0]))
+                .collect(Collectors.toSet());
 
-            // Walk class files and compile a full list of available source
-            AvailableSourceVisitor sourceVisitor = new AvailableSourceVisitor(ASM_API);
-            Files.walkFileTree(directory.toPath(), new BulkClassFileVisitor(sourceVisitor));
+        Set<String> deadClassNames = detector.getDeadClasses(directory.toPath(), externalApiClasses);
 
-            Set<String> sourceClassNames = sourceVisitor.getSourceClassNames();
-
-            sourceClassNames.stream()
-                    .forEach(name -> logger.debug("Found source class {}", name));
-
-            Predicate<String> exclusionFilter = getExclusionFilter();
-
-            sourceClassNames = sourceClassNames.stream()
-                    .filter(exclusionFilter)
-                    .collect(Collectors.toSet());
-
-            sourceClassNames.stream()
-                    .forEach(name -> tracer.traceClassFeature(name, "(source file found)"));
-
-            logger.info("{} source classes found to evaluate for uses within the code base", sourceClassNames.size());
-
-            // Find references to known source files
-            ReferencedClassVisitor referenceVisitor = new ReferencedClassVisitor(ASM_API, sourceClassNames, tracer);
-            Files.walkFileTree(directory.toPath(), new BulkClassFileVisitor(referenceVisitor));
-
-            sourceClassNames.removeAll(referenceVisitor.getReferencedClasses());
-
-            // If there are still dead classes, try AST parsing for constant references
-            if (!sourceClassNames.isEmpty()) {
-                logger.info(
-                        "Classes not referenced by method found - running in-depth analysis for other reference types");
-
-                Files.walkFileTree(directory.toPath(),
-                        new BulkSourceFileVisitor(sourceClassNames, sourceClassNames::remove));
-            }
-
-            logger.info("Found {} classes with no detected references", sourceClassNames.size());
-
-            sourceClassNames.stream()
-                    .sorted()
-                    .forEach(name -> logger.info("No references found to class {}", name));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private Predicate<String> getExclusionFilter() {
-        Collection<PathMatcher> matchers = Stream.of(Optional.ofNullable(excludedPatterns).orElse(new String[0]))
-                .map(String::trim)
-                .map(String::toLowerCase)
-                .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
-                .collect(Collectors.toList());
-
-        return (className -> !matchers.stream()
-                .anyMatch(matcher -> matcher.matches(Paths.get(className.trim().toLowerCase()))));
+        deadClassNames.stream()
+        .sorted()
+        .forEach(name -> logger.info("No references found to class {}", name));
     }
 
     private static final class Tracer implements ClassUseTracer {
@@ -139,11 +79,9 @@ public class DeadClassesCommand implements Runnable {
             this.structureTraceClass = Optional.ofNullable(structureTraceClass)
                     .map(trace -> trace.replace('.', '/'))
                     .orElse(null);
-            ;
             this.useTraceClass = Optional.ofNullable(useTraceClass)
                     .map(trace -> trace.replace('.', '/'))
                     .orElse(null);
-            ;
         }
 
         @Override
