@@ -11,20 +11,22 @@
 package org.starchartlabs.helsing.cli.command;
 
 import java.io.File;
-import java.util.Objects;
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import javax.annotation.Nullable;
 
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.spi.StringArrayOptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.starchartlabs.helsing.cli.impl.ClassUseTracer;
-import org.starchartlabs.helsing.cli.impl.DeadClassDetector;
+import org.starchartlabs.helsing.core.DeadClassAnalyzer;
 
 // TODO romeara
 public class DeadClassesCommand implements Runnable {
@@ -42,6 +44,10 @@ public class DeadClassesCommand implements Runnable {
             usage = "Specifies any classes which are intended for use outside the current context and should not be marked as 'dead'")
     private String[] externalApiPatterns;
 
+    @Option(name = "-e", aliases = { "--exclude" }, handler = StringArrayOptionHandler.class, required = false,
+            usage = "Specifies any classes which should be completely ignored for analysis")
+    private String[] excludePatterns;
+
     @Option(name = "-t", aliases = {
     "--trace" }, required = false,
             usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
@@ -49,55 +55,45 @@ public class DeadClassesCommand implements Runnable {
 
     @Override
     public void run() {
-        Tracer tracer = new Tracer(traceClassName, traceClassName);
-        DeadClassDetector detector = new DeadClassDetector(tracer);
+        DeadClassAnalyzer analyzer = new DeadClassAnalyzer(getExclusionFilter(), traceClassName);
 
+        try {
+            Set<String> deadClassNames = analyzer.findDeadClasses(directory.toPath(), getExcludeFilter());
+
+            logger.info("Found {} classes with no detected references", deadClassNames.size());
+
+            deadClassNames.stream()
+            .sorted()
+            .forEach(name -> logger.info("No references found to class {}", name));
+        } catch (IOException e) {
+            throw new RuntimeException("Error accessing files for analysis", e);
+        }
+    }
+
+    private Predicate<Path> getExclusionFilter() {
         Set<String> externalApiClasses = Stream.of(Optional.ofNullable(externalApiPatterns).orElse(new String[0]))
                 .collect(Collectors.toSet());
 
-        Set<String> deadClassNames = detector.getDeadClasses(directory.toPath(), externalApiClasses);
+        Collection<PathMatcher> matchers = externalApiClasses.stream()
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
+                .collect(Collectors.toList());
 
-        deadClassNames.stream()
-        .sorted()
-        .forEach(name -> logger.info("No references found to class {}", name));
+        return (filePath -> !matchers.stream().anyMatch(matcher -> matcher.matches(filePath)));
     }
 
-    private static final class Tracer implements ClassUseTracer {
+    private Predicate<Path> getExcludeFilter() {
+        Set<String> excludedClasses = Stream.of(Optional.ofNullable(excludePatterns).orElse(new String[0]))
+                .collect(Collectors.toSet());
 
-        /** Logger reference to output information to the application log files */
-        private final Logger logger = LoggerFactory.getLogger(getClass());
+        Collection<PathMatcher> matchers = excludedClasses.stream()
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
+                .collect(Collectors.toList());
 
-        // Class to trace when found, and what it contains
-        @Nullable
-        private final String structureTraceClass;
-
-        // Class to trace discovered uses of
-        @Nullable
-        private final String useTraceClass;
-
-        public Tracer(String structureTraceClass, String useTraceClass) {
-            this.structureTraceClass = Optional.ofNullable(structureTraceClass)
-                    .map(trace -> trace.replace('.', '/'))
-                    .orElse(null);
-            this.useTraceClass = Optional.ofNullable(useTraceClass)
-                    .map(trace -> trace.replace('.', '/'))
-                    .orElse(null);
-        }
-
-        @Override
-        public void traceClassFeature(String className, String feature) {
-            if (Objects.equals(structureTraceClass, className)) {
-                logger.info("[SOURCE] {}: {}", className, feature);
-            }
-        }
-
-        @Override
-        public void traceClassUse(String className, String usedIn) {
-            if (Objects.equals(useTraceClass, className)) {
-                logger.info("[USE] {}:{}", className, usedIn);
-            }
-        }
-
+        return (filePath -> !matchers.stream().anyMatch(matcher -> matcher.matches(filePath)));
     }
 
 }

@@ -1,14 +1,9 @@
-apply plugin: 'it.gianluz.capsule'
-
-description = 'Command line interface for running necromancer utilities on a code set'
+description = 'Core implementations for analyzing a code base for unused code'
 
 //Dependency versions managed in ${rootDir}/dependencies.properties
 dependencies {
 	compileOnly 'com.google.code.findbugs:jsr305'
     
-    compile project(':helsing-core')
-    
-    compile 'args4j:args4j'
     compile 'com.github.javaparser:javaparser-core'
     compile 'org.ow2.asm:asm'
     compile 'org.slf4j:slf4j-api'
@@ -30,15 +25,4 @@ sourcesJar {
 
 javadocJar{
     from("${rootDir}"){ include 'LICENSE' }
-}
-
-task distCapsule(type: FatCapsule) {
-    applicationClass 'org.starchartlabs.helsing.cli.CommandLineInterface'
-    embedConfiguration configurations.runtime
-}
-
-tasks.assemble.dependsOn distCapsule
-
-artifacts {
-    archives distCapsule
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Nov 12, 2019 StarChart Labs Authors.
+ * Copyright (c) Dec 9, 2019 StarChart Labs Authors.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -8,7 +8,7 @@
  * Contributors:
  *    romeara - initial API and implementation and/or initial documentation
  */
-package org.starchartlabs.helsing.cli.impl;
+package org.starchartlabs.helsing.core.asm;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -18,28 +18,41 @@ import org.objectweb.asm.ClassVisitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// TODO romeara
-public class AvailableSourceVisitor extends ClassVisitor {
+//TODO romeara
+public class AvailableClassVisitor extends ClassVisitor {
 
     /** Logger reference to output information to the application log files */
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
-    private final Set<String> sourceClassNames;
+    private final Set<String> classNames;
 
     private String baseName;
 
     private boolean anonymous;
 
-    public AvailableSourceVisitor(int api) {
+    public AvailableClassVisitor(int api) {
         super(api);
 
-        sourceClassNames = new HashSet<>();
+        classNames = new HashSet<>();
         reset();
+    }
+
+    public AvailableClassVisitor(int api, ClassVisitor classVisitor) {
+        super(api, classVisitor);
+
+        classNames = new HashSet<>();
+        reset();
+    }
+
+    public Set<String> getClassNames() {
+        return classNames;
     }
 
     @Override
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
         baseName = name;
+
+        super.visit(version, access, name, signature, superName, interfaces);
     }
 
     @Override
@@ -49,20 +62,22 @@ public class AvailableSourceVisitor extends ClassVisitor {
         logger.debug("Visiting inner class {}:{}", name, innerName);
 
         anonymous = (innerName == null);
+
+        super.visitInnerClass(name, outerName, innerName, access);
     }
 
     @Override
     public void visitEnd() {
+        // Standardize names from folder name style to dot-separated names
         Optional<String> sourceClassName = Optional.ofNullable(baseName)
-                .filter(name -> !anonymous);
+                .filter(name -> !anonymous)
+                .map(AsmUtils::toExternalName);
 
-        sourceClassName.ifPresent(sourceClassNames::add);
+        sourceClassName.ifPresent(classNames::add);
 
         reset();
-    }
 
-    public Set<String> getSourceClassNames() {
-        return sourceClassNames;
+        super.visitEnd();
     }
 
     private void reset() {

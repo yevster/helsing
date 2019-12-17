@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Nov 12, 2019 StarChart Labs Authors.
+ * Copyright (c) Dec 9, 2019 StarChart Labs Authors.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -8,7 +8,7 @@
  * Contributors:
  *    romeara - initial API and implementation and/or initial documentation
  */
-package org.starchartlabs.helsing.cli.impl;
+package org.starchartlabs.helsing.core.asm;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,17 +18,22 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 
-//TODO romeara
-public class BulkClassFileVisitor extends SimpleFileVisitor<Path> {
+public class ClassFileVisitor extends SimpleFileVisitor<Path> {
+
+    private static final String CLASS_FILE_REGEX = ".*\\.class";
 
     private final ClassVisitor classVisitor;
 
-    public BulkClassFileVisitor(ClassVisitor classVisitor) {
+    private final Predicate<Path> fileFilter;
+
+    public ClassFileVisitor(ClassVisitor classVisitor, Predicate<Path> fileFilter) {
         this.classVisitor = Objects.requireNonNull(classVisitor);
+        this.fileFilter = Objects.requireNonNull(fileFilter);
     }
 
     @Override
@@ -36,13 +41,11 @@ public class BulkClassFileVisitor extends SimpleFileVisitor<Path> {
         Objects.requireNonNull(file);
         Objects.requireNonNull(attrs);
 
-        if (file.toString().matches(".*\\.class")) {
+        if (file.toString().matches(CLASS_FILE_REGEX) && fileFilter.test(file)) {
             try (InputStream inputStream = Files.newInputStream(file)) {
                 ClassReader cr = new ClassReader(inputStream);
 
                 cr.accept(classVisitor, 0);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
         }
 
