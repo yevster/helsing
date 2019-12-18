@@ -78,6 +78,8 @@ public class DeadClassesCommand implements Runnable {
                 .map(className -> className.endsWith("/*") ? className + "*" : className)
                 .collect(Collectors.toSet());
 
+        externalApiClasses.forEach(pattern -> logger.info("External API match pattern provided: '{}'", pattern));
+
         Collection<PathMatcher> matchers = externalApiClasses.stream()
                 .map(String::trim)
                 .map(String::toLowerCase)
@@ -94,6 +96,8 @@ public class DeadClassesCommand implements Runnable {
                         : "**/" + className)
                 .map(className -> className.endsWith("/*") ? className + "*" : className)
                 .collect(Collectors.toSet());
+
+        excludedClasses.forEach(pattern -> logger.info("Exclusion match pattern provided: '{}'", pattern));
 
         Collection<PathMatcher> matchers = excludedClasses.stream()
                 .map(String::trim)
