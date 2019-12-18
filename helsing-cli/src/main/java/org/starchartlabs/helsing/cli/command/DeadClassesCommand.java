@@ -49,7 +49,7 @@ public class DeadClassesCommand implements Runnable {
     private String[] excludePatterns;
 
     @Option(name = "-t", aliases = {
-    "--trace" }, required = false,
+            "--trace" }, required = false,
             usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
     private String traceClassName;
 
@@ -63,8 +63,8 @@ public class DeadClassesCommand implements Runnable {
             logger.info("Found {} classes with no detected references", deadClassNames.size());
 
             deadClassNames.stream()
-            .sorted()
-            .forEach(name -> logger.info("No references found to class {}", name));
+                    .sorted()
+                    .forEach(name -> logger.info("No references found to class {}", name));
         } catch (IOException e) {
             throw new RuntimeException("Error accessing files for analysis", e);
         }
@@ -75,14 +75,13 @@ public class DeadClassesCommand implements Runnable {
                 .map(className -> className.replace('.', '/'))
                 .map(className -> className.startsWith("**/") || className.startsWith("/") ? className
                         : "**/" + className)
-                .map(className -> className.endsWith("/*") ? className + "*" : className)
+                .map(className -> className.endsWith("/*") ? className + "*" : className + ".class")
                 .collect(Collectors.toSet());
 
         externalApiClasses.forEach(pattern -> logger.info("External API match pattern provided: '{}'", pattern));
 
         Collection<PathMatcher> matchers = externalApiClasses.stream()
                 .map(String::trim)
-                .map(String::toLowerCase)
                 .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
                 .collect(Collectors.toList());
 
@@ -94,14 +93,13 @@ public class DeadClassesCommand implements Runnable {
                 .map(className -> className.replace('.', '/'))
                 .map(className -> className.startsWith("**/") || className.startsWith("/") ? className
                         : "**/" + className)
-                .map(className -> className.endsWith("/*") ? className + "*" : className)
+                .map(className -> className.endsWith("/*") ? className + "*" : className + ".class")
                 .collect(Collectors.toSet());
 
         excludedClasses.forEach(pattern -> logger.info("Exclusion match pattern provided: '{}'", pattern));
 
         Collection<PathMatcher> matchers = excludedClasses.stream()
                 .map(String::trim)
-                .map(String::toLowerCase)
                 .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
                 .collect(Collectors.toList());
 
