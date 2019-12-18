@@ -53,16 +53,25 @@ public class DeadClassAnalyzer {
 
         Preconditions.checkArgument(Files.isDirectory(directory), "%s is not a directory", directory.toString());
 
+        logger.info("Analyzing {} for dead classes", directory);
+
         // Find all available classes to evaluate as used or unused
         Set<String> unusedClasses = findAvailableClasses(directory, fileFilter);
+
+        logger.info("Found {} classes to analyze", unusedClasses.size());
 
         // Process byte-code references within the directory
         unusedClasses = removeStructuralUses(directory, fileFilter, unusedClasses);
 
         // If classes remain without uses, do a more detailed source analysis for things like references to constants
         if (!unusedClasses.isEmpty()) {
+            logger.info("{} classes are not referenced in ways detectable in byte-code - checking source",
+                    unusedClasses.size());
+
             unusedClasses = removeConstantReferences(directory, fileFilter, unusedClasses);
         }
+
+        logger.info("{} unused classes found", unusedClasses.size());
 
         return unusedClasses;
     }

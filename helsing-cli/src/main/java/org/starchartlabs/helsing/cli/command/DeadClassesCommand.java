@@ -72,6 +72,10 @@ public class DeadClassesCommand implements Runnable {
 
     private Predicate<Path> getExclusionFilter() {
         Set<String> externalApiClasses = Stream.of(Optional.ofNullable(externalApiPatterns).orElse(new String[0]))
+                .map(className -> className.replace('.', '/'))
+                .map(className -> className.startsWith("**/") || className.startsWith("/") ? className
+                        : "**/" + className)
+                .map(className -> className.endsWith("/*") ? className + "*" : className)
                 .collect(Collectors.toSet());
 
         Collection<PathMatcher> matchers = externalApiClasses.stream()
@@ -85,6 +89,10 @@ public class DeadClassesCommand implements Runnable {
 
     private Predicate<Path> getExcludeFilter() {
         Set<String> excludedClasses = Stream.of(Optional.ofNullable(excludePatterns).orElse(new String[0]))
+                .map(className -> className.replace('.', '/'))
+                .map(className -> className.startsWith("**/") || className.startsWith("/") ? className
+                        : "**/" + className)
+                .map(className -> className.endsWith("/*") ? className + "*" : className)
                 .collect(Collectors.toSet());
 
         Collection<PathMatcher> matchers = excludedClasses.stream()

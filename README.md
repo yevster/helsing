@@ -23,6 +23,7 @@ java -jar <jar name> dead-classes --directory <project directory>
 
 on a built project (built meaning the project directory contains compiled `*.class` files). Additionally, the `--trace` argument may be given a full-qualified class name, which will log additional information about the structure discovered for that class (if a use of another class isn't being detected within it), an the discovered uses of that class
 
+Two other arguments are supported: `--external` and `--exclude`. These take one or more class/package patterns (`org.company.Class`, `org.company.*`). The external argument still evaluates matching class's use of other classes, but does not consider those classes as "dead" if they are not referenced. The exclude argument ignores matching classes during analysis entirely.
 ## Legal
 
 This project is distributed under the [MIT License](https://opensource.org/licenses/MIT). There are no requirements for using it in your own project (a line in a NOTICES file is appreciated but not necessary for use)
