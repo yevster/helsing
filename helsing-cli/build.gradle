@@ -8,8 +8,8 @@ dependencies {
     
     compile project(':helsing-core')
     
-    compile 'args4j:args4j'
     compile 'com.github.javaparser:javaparser-core'
+    compile 'info.picocli:picocli'
     compile 'org.ow2.asm:asm'
     compile 'org.slf4j:slf4j-api'
     compile 'org.starchartlabs.alloy:alloy-core'

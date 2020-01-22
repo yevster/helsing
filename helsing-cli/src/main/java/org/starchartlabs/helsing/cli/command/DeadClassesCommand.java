@@ -22,13 +22,17 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.kohsuke.args4j.Option;
-import org.kohsuke.args4j.spi.StringArrayOptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.starchartlabs.helsing.core.DeadClassAnalyzer;
 
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+
 // TODO romeara
+@Command(
+        description = "Analyzes files within an application and determines which, if any, may not be currently referenced within the available source",
+        name = DeadClassesCommand.COMMAND_NAME, mixinStandardHelpOptions = true)
 public class DeadClassesCommand implements Runnable {
 
     public static final String COMMAND_NAME = "dead-classes";
@@ -36,21 +40,20 @@ public class DeadClassesCommand implements Runnable {
     /** Logger reference to output information to the application log files */
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
-    @Option(name = "-d", aliases = { "--directory" }, required = true,
-            usage = "Specifies the directory containing the classes to evaluate. Required")
+    @Option(names = { "-d", "--directory" }, required = true,
+            description = "Specifies the directory containing the classes to evaluate. Required")
     private File directory;
 
-    @Option(name = "-x", aliases = { "--external" }, handler = StringArrayOptionHandler.class, required = false,
-            usage = "Specifies any classes which are intended for use outside the current context and should not be marked as 'dead'")
+    @Option(names = { "-x", "--external" }, required = false,
+            description = "Specifies any classes which are intended for use outside the current context and should not be marked as 'dead'")
     private String[] externalApiPatterns;
 
-    @Option(name = "-e", aliases = { "--exclude" }, handler = StringArrayOptionHandler.class, required = false,
-            usage = "Specifies any classes which should be completely ignored for analysis")
+    @Option(names = { "-e", "--exclude" }, required = false,
+            description = "Specifies any classes which should be completely ignored for analysis")
     private String[] excludePatterns;
 
-    @Option(name = "-t", aliases = {
-            "--trace" }, required = false,
-            usage = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
+    @Option(names = { "-t", "--trace" }, required = false,
+            description = "Specifies a specific class name to output tracing information for determination of dead/alive for. Optional")
     private String traceClassName;
 
     @Override
@@ -63,8 +66,8 @@ public class DeadClassesCommand implements Runnable {
             logger.info("Found {} classes with no detected references", deadClassNames.size());
 
             deadClassNames.stream()
-                    .sorted()
-                    .forEach(name -> logger.info("No references found to class {}", name));
+            .sorted()
+            .forEach(name -> logger.info("No references found to class {}", name));
         } catch (IOException e) {
             throw new RuntimeException("Error accessing files for analysis", e);
         }

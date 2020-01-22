@@ -10,46 +10,14 @@
  */
 package org.starchartlabs.helsing.cli;
 
-import org.kohsuke.args4j.Argument;
-import org.kohsuke.args4j.CmdLineException;
-import org.kohsuke.args4j.CmdLineParser;
-import org.kohsuke.args4j.spi.SubCommand;
-import org.kohsuke.args4j.spi.SubCommandHandler;
-import org.kohsuke.args4j.spi.SubCommands;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.starchartlabs.helsing.cli.command.DeadClassesCommand;
+import org.starchartlabs.helsing.cli.command.HelsingCommand;
+
+import picocli.CommandLine;
 
 public class CommandLineInterface {
 
-    /** Logger reference to output information to the application log files */
-    private final Logger logger = LoggerFactory.getLogger(getClass());
-
-    @Argument(handler = SubCommandHandler.class)
-    @SubCommands({
-        @SubCommand(name = DeadClassesCommand.COMMAND_NAME, impl = DeadClassesCommand.class),
-    })
-    private Runnable command;
-
-    public static void main(String[] args) {
-        new CommandLineInterface().run(args);
-    }
-
-    public void run(String[] args) {
-        CmdLineParser parser = new CmdLineParser(this);
-
-        try {
-            // parse the arguments.
-            parser.parseArgument(args);
-
-            if (command != null) {
-                command.run();
-            } else {
-                logger.error("Invalid command line arguments");
-            }
-        } catch (CmdLineException e) {
-            logger.error("Invalid command line arguments", e);
-        }
+    public static void main(String[] args) throws Exception {
+        new CommandLine(new HelsingCommand()).execute(args);
     }
 
 }
