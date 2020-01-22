@@ -32,10 +32,10 @@ import picocli.CommandLine.Option;
 // TODO romeara
 @Command(
         description = "Analyzes files within an application and determines which, if any, may not be currently referenced within the available source",
-        name = DeadClassesCommand.COMMAND_NAME, mixinStandardHelpOptions = true)
-public class DeadClassesCommand implements Runnable {
+        name = DeadClassCandidatesCommand.COMMAND_NAME, mixinStandardHelpOptions = true)
+public class DeadClassCandidatesCommand implements Runnable {
 
-    public static final String COMMAND_NAME = "dead-classes";
+    public static final String COMMAND_NAME = "dead-class-candidates";
 
     /** Logger reference to output information to the application log files */
     private final Logger logger = LoggerFactory.getLogger(getClass());

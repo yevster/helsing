@@ -20,7 +20,7 @@ import picocli.CommandLine.Command;
  * @author romeara
  * @since 0.1.0
  */
-@Command(mixinStandardHelpOptions = true, subcommands = { DeadClassesCommand.class })
+@Command(mixinStandardHelpOptions = true, subcommands = { DeadClassCandidatesCommand.class })
 public class HelsingCommand implements Runnable {
 
     @Override
