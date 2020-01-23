@@ -48,8 +48,12 @@ public class DeadClassCandidatesCommand implements Runnable {
             description = "Specifies any classes which are intended for use outside the current context and should not be marked as 'dead'")
     private String[] externalApiPatterns;
 
+    @Option(names = { "-i", "--include" }, required = false,
+            description = "Specifies any class names to limit analysis to. Applied before any exclude patterns")
+    private String[] includePatterns;
+
     @Option(names = { "-e", "--exclude" }, required = false,
-            description = "Specifies any classes which should be completely ignored for analysis")
+            description = "Specifies any classes which should be completely ignored for analysis. Applied after any include patterns")
     private String[] excludePatterns;
 
     @Option(names = { "-t", "--trace" }, required = false,
@@ -61,7 +65,9 @@ public class DeadClassCandidatesCommand implements Runnable {
         DeadClassAnalyzer analyzer = new DeadClassAnalyzer(getExclusionFilter(), traceClassName);
 
         try {
-            Set<String> deadClassNames = analyzer.findDeadClasses(directory.toPath(), getExcludeFilter());
+            Predicate<Path> analyzedClassesFilter = getIncludeFilter().and(getExcludeFilter());
+
+            Set<String> deadClassNames = analyzer.findDeadClasses(directory.toPath(), analyzedClassesFilter);
 
             logger.info("Found {} classes with no detected references", deadClassNames.size());
 
@@ -91,22 +97,39 @@ public class DeadClassCandidatesCommand implements Runnable {
         return (filePath -> !matchers.stream().anyMatch(matcher -> matcher.matches(filePath)));
     }
 
+    private Predicate<Path> getIncludeFilter() {
+        Set<String> classFileNamePatterns = toClassPatterns(includePatterns);
+
+        classFileNamePatterns.forEach(pattern -> logger.info("Inclusion match pattern provided: '{}'", pattern));
+
+        Collection<PathMatcher> matchers = classFileNamePatterns.stream()
+                .map(String::trim)
+                .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
+                .collect(Collectors.toList());
+
+        return (filePath -> matchers.stream().anyMatch(matcher -> matcher.matches(filePath)));
+    }
+
     private Predicate<Path> getExcludeFilter() {
-        Set<String> excludedClasses = Stream.of(Optional.ofNullable(excludePatterns).orElse(new String[0]))
-                .map(className -> className.replace('.', '/'))
-                .map(className -> className.startsWith("**/") || className.startsWith("/") ? className
-                        : "**/" + className)
-                .map(className -> className.endsWith("/*") ? className + "*" : className + ".class")
-                .collect(Collectors.toSet());
+        Set<String> classFileNamePatterns = toClassPatterns(excludePatterns);
 
-        excludedClasses.forEach(pattern -> logger.info("Exclusion match pattern provided: '{}'", pattern));
+        classFileNamePatterns.forEach(pattern -> logger.info("Exclusion match pattern provided: '{}'", pattern));
 
-        Collection<PathMatcher> matchers = excludedClasses.stream()
+        Collection<PathMatcher> matchers = classFileNamePatterns.stream()
                 .map(String::trim)
                 .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
                 .collect(Collectors.toList());
 
         return (filePath -> !matchers.stream().anyMatch(matcher -> matcher.matches(filePath)));
+    }
+
+    private Set<String> toClassPatterns(String[] patterns) {
+        return Stream.of(Optional.ofNullable(patterns).orElse(new String[0]))
+                .map(className -> className.replace('.', '/'))
+                .map(className -> className.startsWith("**/") || className.startsWith("/") ? className
+                        : "**/" + className)
+                .map(className -> className.endsWith("/*") ? className + "*" : className + ".class")
+                .collect(Collectors.toSet());
     }
 
 }
