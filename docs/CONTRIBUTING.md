@@ -17,6 +17,10 @@ We welcome any contributions! If you wish to contribute:
 
 Currently, Eclipse is the supported IDE for development. It is recommended to create an isolated workspace for StarChart Labs projects. You should also import the standard StarChart Labs formatting and save settings from the [eclipse-configuration repository](https://github.com/StarChart-Labs/eclipse-configuration)
 
+## Custom Setup
+
+To run Helsing tests, the property `org.starchartlabs.helsing.test.project.dir` must be set to the file path of the `helsing-test-project` directory in the run/debug settings of TestNG. Executions of the tests from the command line via Gradle are configured with this value automatically.
+
 ## General Standards
 
 In general, pull requests should:

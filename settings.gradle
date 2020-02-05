@@ -2,3 +2,4 @@ rootProject.name = 'helsing'
 
 include 'helsing-cli'
 include 'helsing-core'
+include 'helsing-test-project'
