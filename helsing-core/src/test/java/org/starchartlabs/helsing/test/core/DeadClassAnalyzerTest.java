@@ -33,7 +33,7 @@ import org.testng.annotations.Test;
  *
  * @author romeara
  */
-public class BytecodeAnalysisTest {
+public class DeadClassAnalyzerTest {
 
     private static final Path TEST_PROJECT_DIRECTORY = Paths
             .get(System.getProperty("org.starchartlabs.helsing.test.project.dir"));
@@ -82,6 +82,50 @@ public class BytecodeAnalysisTest {
     public void foundUseViaExtension() throws Exception {
         Assert.assertFalse(analysisResult.contains("org.starchartlabs.helsing.test.project.UsedViaExtension"),
                 "Expected class used via extension to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
+    public void foundUseViaClassAnnotation() throws Exception {
+        Assert.assertFalse(analysisResult.contains("org.starchartlabs.helsing.test.project.ClassAnnotation"),
+                "Expected class used via annotation on class to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
+    public void foundUseViaMethodAnnotation() throws Exception {
+        Assert.assertFalse(analysisResult.contains("org.starchartlabs.helsing.test.project.MethodAnnotation"),
+                "Expected class used via annotation on method to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
+    public void foundUseViaFieldAnnotation() throws Exception {
+        Assert.assertFalse(analysisResult.contains("org.starchartlabs.helsing.test.project.FieldAnnotation"),
+                "Expected class used via annotation on field to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
+    public void foundUseViaConstantSamePackageSimpleName() throws Exception {
+        Assert.assertFalse(analysisResult.contains("org.starchartlabs.helsing.test.project.UsedByConstantSimpleName"),
+                "Expected class used via constant in same package to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
+    public void foundUseViaConstantSamePackageQualifiedName() throws Exception {
+        Assert.assertFalse(analysisResult.contains("org.starchartlabs.helsing.test.project.UsedByConstantFullName"),
+                "Expected class used via constant in same package with qualified name to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
+    public void foundUseViaConstantDifferentPackageImported() throws Exception {
+        Assert.assertFalse(
+                analysisResult.contains("org.starchartlabs.helsing.test.project.other.UsedByConstantImported"),
+                "Expected class used via constant and imported to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
+    public void foundUseViaConstantDifferentPackageQualifiedName() throws Exception {
+        Assert.assertFalse(
+                analysisResult.contains("org.starchartlabs.helsing.test.project.other.UsedByConstantFullName"),
+                "Expected class used via constant in different package with qualified name to not be marked as dead (should be used by test class UsesOtherClasses)");
     }
 
 }

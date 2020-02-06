@@ -10,19 +10,32 @@
  */
 package org.starchartlabs.helsing.test.project;
 
+import org.starchartlabs.helsing.test.project.other.UsedByConstantImported;
+
 /**
  * This class uses others in specific ways, for testing they aren't marked as dead
  *
  * @author romeara
  */
+@ClassAnnotation
 public class UsesOtherClasses extends UsedViaExtension {
 
-    public int getThing() {
+    @MethodAnnotation
+    public int getThing(@FieldAnnotation String input) {
         return new UsedViaSimpleMethod().add(1, 2);
     }
 
     public int getOtherThing() {
         return UsedViaStaticMethod.multiply(3, 4);
+    }
+
+    public String getSamePackageSimpleNameConstant() {
+        return UsedByConstantSimpleName.CONSTANT + UsedByConstantImported.CONSTANT;
+    }
+
+    public String getSamePackageQualifiedNameConstant() {
+        return org.starchartlabs.helsing.test.project.UsedByConstantFullName.CONSTANT
+                + org.starchartlabs.helsing.test.project.other.UsedByConstantFullName.CONSTANT;
     }
 
 }
