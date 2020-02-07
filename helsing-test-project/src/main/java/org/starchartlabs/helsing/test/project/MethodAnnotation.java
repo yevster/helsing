@@ -21,4 +21,6 @@ import java.lang.annotation.RetentionPolicy;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface MethodAnnotation {
 
+    String value();
+
 }

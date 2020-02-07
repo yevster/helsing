@@ -115,6 +115,20 @@ public class DeadClassAnalyzerTest {
     }
 
     @Test
+    public void foundUseViaAnnotationConstantSamePackageSimpleName() throws Exception {
+        Assert.assertFalse(
+                analysisResult.contains("org.starchartlabs.helsing.test.project.UsedByAnnotationConstantSimpleName"),
+                "Expected class used via constant in annoation in same package to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
+    public void foundUseViaAnnotationConstantSamePackageQualifiedName() throws Exception {
+        Assert.assertFalse(
+                analysisResult.contains("org.starchartlabs.helsing.test.project.UsedByAnnotationConstantFullName"),
+                "Expected class used via constant in annoation in same package to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
     public void foundUseViaConstantDifferentPackageImported() throws Exception {
         Assert.assertFalse(
                 analysisResult.contains("org.starchartlabs.helsing.test.project.other.UsedByConstantImported"),

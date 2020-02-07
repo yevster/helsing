@@ -29,7 +29,7 @@ import org.starchartlabs.helsing.core.asm.AsmUtils;
 import org.starchartlabs.helsing.core.asm.AvailableClassVisitor;
 import org.starchartlabs.helsing.core.asm.ClassFileVisitor;
 import org.starchartlabs.helsing.core.asm.ReferenceClassVisitor;
-import org.starchartlabs.helsing.core.ast.CompilcationUnitVisitor;
+import org.starchartlabs.helsing.core.ast.CompilationUnitVisitor;
 import org.starchartlabs.helsing.core.ast.SourceFileVisitor;
 
 //TODO romeara
@@ -118,7 +118,7 @@ public class DeadClassAnalyzer {
 
         ReferenceConsumer referenceConsumer = new ReferenceConsumer(unusedClasses);
 
-        CompilcationUnitVisitor sourceVisitor = new CompilcationUnitVisitor(unusedClasses, referenceConsumer);
+        CompilationUnitVisitor sourceVisitor = new CompilationUnitVisitor(unusedClasses, referenceConsumer);
         SourceFileVisitor fileVisitor = new SourceFileVisitor(sourceVisitor, fileFilter);
 
         // Traverse the class files of the given directory and find source-accessible references to relevant classes

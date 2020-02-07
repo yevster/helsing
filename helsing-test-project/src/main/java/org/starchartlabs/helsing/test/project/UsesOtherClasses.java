@@ -17,10 +17,10 @@ import org.starchartlabs.helsing.test.project.other.UsedByConstantImported;
  *
  * @author romeara
  */
-@ClassAnnotation
+@ClassAnnotation(UsedByAnnotationConstantSimpleName.CONSTANT)
 public class UsesOtherClasses extends UsedViaExtension {
 
-    @MethodAnnotation
+    @MethodAnnotation(org.starchartlabs.helsing.test.project.UsedByAnnotationConstantFullName.CONSTANT)
     public int getThing(@FieldAnnotation String input) {
         return new UsedViaSimpleMethod().add(1, 2);
     }

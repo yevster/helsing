@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Feb 6, 2020 StarChart Labs Authors.
+ * Copyright (c) Feb 5, 2020 StarChart Labs Authors.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -10,17 +10,14 @@
  */
 package org.starchartlabs.helsing.test.project;
 
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-
 /**
- * Annotation referenced via annotating a class
+ * This class is used to test detection via use of a constant within the same package (no import or fully-qualified name
+ * required)
  *
  * @author romeara
  */
-@Retention(RetentionPolicy.RUNTIME)
-public @interface ClassAnnotation {
+public class UsedByAnnotationConstantSimpleName {
 
-    String value();
+    public static final String CONSTANT = "constant";
 
 }

@@ -28,13 +28,13 @@ import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.PackageDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
 
-public class CompilcationUnitVisitor implements Consumer<String> {
+public class CompilationUnitVisitor implements Consumer<String> {
 
     private final Set<String> unreferencedClasses;
 
     private final BiConsumer<String, String> referenceConsumer;
 
-    public CompilcationUnitVisitor(Set<String> unreferencedClasses, BiConsumer<String, String> referenceConsumer) {
+    public CompilationUnitVisitor(Set<String> unreferencedClasses, BiConsumer<String, String> referenceConsumer) {
         this.unreferencedClasses = Objects.requireNonNull(unreferencedClasses);
         this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
     }
