@@ -2,10 +2,16 @@ apply plugin: 'it.gianluz.capsule'
 
 description = 'Command line interface for running necromancer utilities on a code set'
 
-//Need to exclude the real logger from test runs, so use a special configuration to side-step its inclusion in test runs
+// Need to exclude the real logger from test runs, so use a special configuration to side-step its inclusion in test runs
 configurations {
     capsuleRuntime{
         extendsFrom runtime
+    }
+}
+
+eclipse{
+    classpath {
+        plusConfigurations += [ configurations.capsuleRuntime ]
     }
 }
 

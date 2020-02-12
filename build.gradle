@@ -18,7 +18,8 @@ allprojects {
     // Always download sources, to allow debugging
     eclipse {
         classpath {
-            downloadSources=true
+            downloadSources = true
+            downloadJavadoc = true
         }
     }
 
