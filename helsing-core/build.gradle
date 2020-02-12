@@ -9,8 +9,6 @@ dependencies {
     compile 'org.slf4j:slf4j-api'
     compile 'org.starchartlabs.alloy:alloy-core'
     
-    runtime 'org.slf4j:slf4j-simple'
-
     testCompile 'org.testng:testng'
     
     testRuntime project(':helsing-test-project')
