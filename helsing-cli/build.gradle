@@ -2,6 +2,13 @@ apply plugin: 'it.gianluz.capsule'
 
 description = 'Command line interface for running necromancer utilities on a code set'
 
+//Need to exclude the real logger from test runs, so use a special configuration to side-step its inclusion in test runs
+configurations {
+    capsuleRuntime{
+        extendsFrom runtime
+    }
+}
+
 //Dependency versions managed in ${rootDir}/dependencies.properties
 dependencies {
 	compileOnly 'com.google.code.findbugs:jsr305'
@@ -14,7 +21,18 @@ dependencies {
     compile 'org.slf4j:slf4j-api'
     compile 'org.starchartlabs.alloy:alloy-core'
     
-    runtime 'org.slf4j:slf4j-simple'
+    capsuleRuntime 'org.slf4j:slf4j-simple'
+    
+    testCompile 'org.testng:testng'
+    testCompile 'uk.org.lidalia:slf4j-test'
+    
+    testRuntime project(':helsing-test-project')
+}
+
+// Configure tests with directory for test project
+// This requires setting up TestNG run/debug properties within IDE imports to execute tests
+test {
+    systemProperty 'org.starchartlabs.helsing.test.project.dir', "${project(':helsing-test-project').projectDir}"
 }
 
 //Apply module naming to all projects
@@ -34,7 +52,7 @@ javadocJar{
 
 task distCapsule(type: FatCapsule) {
     applicationClass 'org.starchartlabs.helsing.cli.CommandLineInterface'
-    embedConfiguration configurations.runtime
+    embedConfiguration configurations.capsuleRuntime
 }
 
 tasks.assemble.dependsOn distCapsule

@@ -99,7 +99,6 @@ public class DeadClassCandidatesCommand implements Runnable {
 
     private Predicate<Path> getIncludeFilter() {
         Set<String> classFileNamePatterns = toClassPatterns(includePatterns);
-
         classFileNamePatterns.forEach(pattern -> logger.info("Inclusion match pattern provided: '{}'", pattern));
 
         Collection<PathMatcher> matchers = classFileNamePatterns.stream()
@@ -107,7 +106,7 @@ public class DeadClassCandidatesCommand implements Runnable {
                 .map(pattern -> FileSystems.getDefault().getPathMatcher("glob:" + pattern))
                 .collect(Collectors.toList());
 
-        return (filePath -> matchers.stream().anyMatch(matcher -> matcher.matches(filePath)));
+        return (filePath -> matchers.isEmpty() || matchers.stream().anyMatch(matcher -> matcher.matches(filePath)));
     }
 
     private Predicate<Path> getExcludeFilter() {
