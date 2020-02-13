@@ -12,7 +12,6 @@ package org.starchartlabs.helsing.core.ast;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -22,6 +21,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import org.starchartlabs.alloy.core.Strings;
 
@@ -61,21 +62,9 @@ public class CompilationUnitVisitor implements Consumer<String> {
         Map<String, String> allowedSimpleNameReferences = getValidSimpleNameReferences(unreferencedClasses,
                 compilationUnit);
 
-        if (!allowedSimpleNameReferences.isEmpty()) {
-            for (Entry<String, String> allowedSimpleNameEntry : allowedSimpleNameReferences.entrySet()) {
-                Pattern pattern = Pattern.compile(
-                        ".*[^a-zA-Z0-9]" + allowedSimpleNameEntry.getValue() + "[^a-zA-Z0-9].*", Pattern.DOTALL);
-
-                if (pattern.matcher(contents).matches()) {
-                    referenceConsumer.accept(allowedSimpleNameEntry.getKey(),
-                            Strings.format("%s simple name reference", currentClassName));
-                }
-            }
-        }
-
         // Find uses of classes by fully qualified name
         for (String classToFind : unreferencedClasses) {
-            Pattern pattern = Pattern.compile(".*[^a-zA-Z0-9]" + classToFind + "[^a-zA-Z0-9].*", Pattern.DOTALL);
+            Pattern pattern = getRegexPattern(classToFind, allowedSimpleNameReferences.get(classToFind));
 
             if (pattern.matcher(contents).matches()) {
                 referenceConsumer.accept(classToFind, Strings.format("%s fully qualified reference", currentClassName));
@@ -127,6 +116,14 @@ public class CompilationUnitVisitor implements Consumer<String> {
                 .filter(notDefinedLocally)
                 .filter(wildcardImportOrSamePackage)
                 .collect(Collectors.toMap(Function.identity(), this::getSimpleName));
+    }
+
+    private Pattern getRegexPattern(String className, @Nullable String simpleClassName) {
+        String toSearch = (simpleClassName != null ? simpleClassName + "|" : "");
+        // Note: First is escaping a regex, second is replacing dot... with the escape sequence for the below regex
+        toSearch = toSearch + className.replaceAll("\\.", "\\.");
+
+        return Pattern.compile(".*[^a-zA-Z0-9](" + toSearch + ")[^a-zA-Z0-9].*", Pattern.DOTALL);
     }
 
     private String getSimpleName(String sourceClass) {
