@@ -146,7 +146,6 @@ public class CompilationUnitVisitor implements Consumer<String> {
         @Override
         public String visit(FieldAccessExpr n, String arg) {
             String found = n.getScope().accept(new NameBuildingVisitor(), null);
-            System.out.println(found);
 
             if (found != null && !found.trim().isEmpty()) {
                 fieldClassesAccessed.add(found);
