@@ -11,6 +11,7 @@
 package org.starchartlabs.helsing.core.ast;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -19,10 +20,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import javax.annotation.Nullable;
 
 import org.starchartlabs.alloy.core.Strings;
 
@@ -31,6 +29,9 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.PackageDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
+import com.github.javaparser.ast.expr.FieldAccessExpr;
+import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.ast.visitor.GenericVisitorAdapter;
 
 public class CompilationUnitVisitor implements Consumer<String> {
 
@@ -48,6 +49,9 @@ public class CompilationUnitVisitor implements Consumer<String> {
         Objects.requireNonNull(contents);
 
         CompilationUnit compilationUnit = StaticJavaParser.parse(contents);
+        FieldAccessVisitor fieldAccessVisitor = new FieldAccessVisitor();
+
+        compilationUnit.accept(fieldAccessVisitor, null);
 
         String currentClassName = compilationUnit.getPrimaryTypeName().orElse("");
 
@@ -63,13 +67,20 @@ public class CompilationUnitVisitor implements Consumer<String> {
                 compilationUnit);
 
         // Find uses of classes by fully qualified name
-        for (String classToFind : unreferencedClasses) {
-            Pattern pattern = getRegexPattern(classToFind, allowedSimpleNameReferences.get(classToFind));
+        Set<String> fieldClassesAccess = fieldAccessVisitor.getFieldClassesAccessed();
 
-            if (pattern.matcher(contents).matches()) {
-                referenceConsumer.accept(classToFind, Strings.format("%s fully qualified reference", currentClassName));
-            }
-        }
+        // Record fully qualified uses
+        unreferencedClasses.stream()
+        .filter(fieldClassesAccess::contains)
+        .forEach(classFound -> referenceConsumer.accept(classFound,
+                Strings.format("%s fully qualified reference", currentClassName)));
+
+        // Record simple name uses
+        unreferencedClasses.stream()
+        .filter(allowedSimpleNameReferences::containsKey)
+        .filter(classToFind -> fieldClassesAccess.contains(allowedSimpleNameReferences.get(classToFind)))
+        .forEach(classFound -> referenceConsumer.accept(classFound,
+                Strings.format("%s simple name reference", currentClassName)));
     }
 
     private Collection<String> findNonStaticImports(Set<String> classesToFind, CompilationUnit compilationUnit) {
@@ -118,18 +129,46 @@ public class CompilationUnitVisitor implements Consumer<String> {
                 .collect(Collectors.toMap(Function.identity(), this::getSimpleName));
     }
 
-    private Pattern getRegexPattern(String className, @Nullable String simpleClassName) {
-        String toSearch = (simpleClassName != null ? simpleClassName + "|" : "");
-        // Note: First is escaping a regex, second is replacing dot... with the escape sequence for the below regex
-        toSearch = toSearch + className.replaceAll("\\.", "\\.");
-
-        return Pattern.compile(".*[^a-zA-Z0-9](" + toSearch + ")[^a-zA-Z0-9].*", Pattern.DOTALL);
-    }
-
     private String getSimpleName(String sourceClass) {
         String[] elements = sourceClass.split("\\.");
 
         return elements[elements.length - 1];
+    }
+
+    private static final class FieldAccessVisitor extends GenericVisitorAdapter<String, String> {
+
+        private final Set<String> fieldClassesAccessed = new HashSet<>();
+
+        public Set<String> getFieldClassesAccessed() {
+            return fieldClassesAccessed;
+        }
+
+        @Override
+        public String visit(FieldAccessExpr n, String arg) {
+            String found = n.getScope().accept(new NameBuildingVisitor(), null);
+            System.out.println(found);
+
+            if (found != null && !found.trim().isEmpty()) {
+                fieldClassesAccessed.add(found);
+            }
+
+            return null;
+        }
+
+    }
+
+    private static final class NameBuildingVisitor extends GenericVisitorAdapter<String, String> {
+
+        @Override
+        public String visit(FieldAccessExpr n, String arg) {
+            return n.getScope().accept(this, n.getNameAsString() + (arg != null ? "." + arg : ""));
+        }
+
+        @Override
+        public String visit(NameExpr n, String arg) {
+            return n.getNameAsString() + (arg != null ? "." + arg : "");
+        }
+
     }
 
 }
