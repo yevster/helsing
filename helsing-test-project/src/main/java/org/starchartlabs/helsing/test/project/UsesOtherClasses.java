@@ -22,7 +22,7 @@ public class UsesOtherClasses extends UsedViaExtension {
 
     @MethodAnnotation(org.starchartlabs.helsing.test.project.UsedByAnnotationConstantFullName.CONSTANT)
     public int getThing(@FieldAnnotation String input) {
-        return new UsedViaSimpleMethod().add(1, 2);
+        return new UsedViaSimpleMethod().add(1, 2) + input.length();
     }
 
     public int getOtherThing() {
@@ -36,6 +36,10 @@ public class UsesOtherClasses extends UsedViaExtension {
     public String getSamePackageQualifiedNameConstant() {
         return org.starchartlabs.helsing.test.project.UsedByConstantFullName.CONSTANT
                 + org.starchartlabs.helsing.test.project.other.UsedByConstantFullName.CONSTANT;
+    }
+
+    public int getSamePackageInMethod() {
+        return getThing(org.starchartlabs.helsing.test.project.UsedByConstantFullNameInMethod.CONSTANT);
     }
 
 }
