@@ -115,6 +115,13 @@ public class DeadClassAnalyzerTest {
     }
 
     @Test
+    public void foundUseViaConstantSamePackageQualifiedNameInMethod() throws Exception {
+        Assert.assertFalse(
+                analysisResult.contains("org.starchartlabs.helsing.test.project.UsedByConstantFullNameInMethod"),
+                "Expected class used via constant in same package with qualified name in method to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
     public void foundUseViaAnnotationConstantSamePackageSimpleName() throws Exception {
         Assert.assertFalse(
                 analysisResult.contains("org.starchartlabs.helsing.test.project.UsedByAnnotationConstantSimpleName"),

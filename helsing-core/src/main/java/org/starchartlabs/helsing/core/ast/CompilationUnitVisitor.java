@@ -11,12 +11,15 @@
 package org.starchartlabs.helsing.core.ast;
 
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -47,61 +50,83 @@ public class CompilationUnitVisitor implements Consumer<String> {
 
         String currentClassName = compilationUnit.getPrimaryTypeName().orElse("");
 
-        compilationUnit.getImports()
-        .forEach(importStatement -> registerImport(currentClassName, importStatement));
+        // Find direct imports of classes
+        findNonStaticImports(unreferencedClasses, compilationUnit).stream()
+        .forEach(used -> referenceConsumer.accept(used, Strings.format("%s import", currentClassName)));
 
-        Collection<String> allowedGenerics = getAllowedGeneralReferences(compilationUnit);
+        findStaticImports(unreferencedClasses, compilationUnit).stream()
+        .forEach(used -> referenceConsumer.accept(used, Strings.format("%s static import", currentClassName)));
 
-        if (!allowedGenerics.isEmpty()) {
-            for (String allowedGeneric : allowedGenerics) {
-                Pattern pattern = Pattern.compile(".*[^a-zA-Z0-9]" + getSimpleName(allowedGeneric) + "[^a-zA-Z0-9].*",
-                        Pattern.DOTALL);
+        // Find uses of classes by simple name
+        Map<String, String> allowedSimpleNameReferences = getValidSimpleNameReferences(unreferencedClasses,
+                compilationUnit);
+
+        if (!allowedSimpleNameReferences.isEmpty()) {
+            for (Entry<String, String> allowedSimpleNameEntry : allowedSimpleNameReferences.entrySet()) {
+                Pattern pattern = Pattern.compile(
+                        ".*[^a-zA-Z0-9]" + allowedSimpleNameEntry.getValue() + "[^a-zA-Z0-9].*", Pattern.DOTALL);
 
                 if (pattern.matcher(contents).matches()) {
-                    referenceConsumer.accept(allowedGeneric, Strings.format("%s generic reference", currentClassName));
+                    referenceConsumer.accept(allowedSimpleNameEntry.getKey(),
+                            Strings.format("%s simple name reference", currentClassName));
                 }
             }
         }
 
-        // TODO Handle direct fully-qualified reference
-    }
+        // Find uses of classes by fully qualified name
+        for (String classToFind : unreferencedClasses) {
+            Pattern pattern = Pattern.compile(".*[^a-zA-Z0-9]" + classToFind + "[^a-zA-Z0-9].*", Pattern.DOTALL);
 
-    private void registerImport(String currentClass, ImportDeclaration importStatement) {
-        Set<String> referencedClasses = new HashSet<>();
-
-        if (importStatement.isStatic()) {
-            referencedClasses = unreferencedClasses.stream()
-                    .filter(sourceClass -> sourceClass.startsWith(importStatement.getNameAsString()))
-                    .collect(Collectors.toSet());
-        } else {
-            referencedClasses.add(importStatement.getNameAsString());
+            if (pattern.matcher(contents).matches()) {
+                referenceConsumer.accept(classToFind, Strings.format("%s fully qualified reference", currentClassName));
+            }
         }
-
-        referencedClasses
-        .forEach(statement -> referenceConsumer.accept(statement, Strings.format("%s import", currentClass)));
     }
 
-    private Collection<String> getAllowedGeneralReferences(CompilationUnit compilationUnit) {
-        Set<String> definedTypes = compilationUnit.getTypes().stream()
+    private Collection<String> findNonStaticImports(Set<String> classesToFind, CompilationUnit compilationUnit) {
+        return compilationUnit.getImports().stream()
+                .filter(statement -> !statement.isStatic())
+                .map(ImportDeclaration::getNameAsString)
+                .filter(classesToFind::contains)
+                .collect(Collectors.toSet());
+    }
+
+    private Collection<String> findStaticImports(Set<String> classesToFind, CompilationUnit compilationUnit) {
+        return compilationUnit.getImports().stream()
+                .filter(ImportDeclaration::isStatic)
+                .map(ImportDeclaration::getNameAsString)
+                .filter(statement -> classesToFind.stream().anyMatch(c -> statement.startsWith(c)))
+                .collect(Collectors.toSet());
+    }
+
+    // Finds unreferenced classes which are allowed to referenced by simple name
+    private Map<String, String> getValidSimpleNameReferences(Set<String> classesToFind,
+            CompilationUnit compilationUnit) {
+        String packageName = compilationUnit.getPackageDeclaration()
+                .map(PackageDeclaration::getNameAsString)
+                .orElse("");
+
+        Set<String> innerClasses = compilationUnit.getTypes().stream()
                 .map(TypeDeclaration::getFullyQualifiedName)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .collect(Collectors.toSet());
 
-        String packageName = compilationUnit.getPackageDeclaration()
-                .map(PackageDeclaration::getNameAsString)
-                .orElse("");
-
-        Collection<String> generalImports = compilationUnit.getImports().stream()
+        Collection<String> wildcardImports = compilationUnit.getImports().stream()
                 .map(ImportDeclaration::getNameAsString)
                 .map(statement -> statement.endsWith(".*") ? statement.substring(0, statement.length() - 2) : statement)
                 .collect(Collectors.toSet());
 
-        return unreferencedClasses.stream()
-                .filter(sourceClass -> !definedTypes.stream().anyMatch(t -> sourceClass.startsWith(t)))
-                .filter(sourceClass -> sourceClass.startsWith(packageName)
-                        || generalImports.stream().anyMatch(i -> sourceClass.startsWith(i)))
-                .collect(Collectors.toSet());
+        Predicate<String> notDefinedLocally = (className -> !innerClasses.stream()
+                .anyMatch(t -> className.startsWith(t)));
+        Predicate<String> wildcardImportOrSamePackage = (className -> className
+                .equals(packageName + "." + getSimpleName(className))
+                || wildcardImports.stream().anyMatch(wildcardPackage -> className.startsWith(wildcardPackage)));
+
+        return classesToFind.stream()
+                .filter(notDefinedLocally)
+                .filter(wildcardImportOrSamePackage)
+                .collect(Collectors.toMap(Function.identity(), this::getSimpleName));
     }
 
     private String getSimpleName(String sourceClass) {
