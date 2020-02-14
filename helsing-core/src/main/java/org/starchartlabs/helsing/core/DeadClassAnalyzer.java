@@ -118,7 +118,8 @@ public class DeadClassAnalyzer {
 
         ReferenceConsumer referenceConsumer = new ReferenceConsumer(unusedClasses);
 
-        CompilationUnitVisitor sourceVisitor = new CompilationUnitVisitor(unusedClasses, referenceConsumer);
+        CompilationUnitVisitor sourceVisitor = new CompilationUnitVisitor(unusedClasses, referenceConsumer,
+                traceClass.orElse(null));
         SourceFileVisitor fileVisitor = new SourceFileVisitor(sourceVisitor, fileFilter);
 
         // Traverse the class files of the given directory and find source-accessible references to relevant classes

@@ -22,6 +22,10 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.starchartlabs.alloy.core.Strings;
 
 import com.github.javaparser.StaticJavaParser;
@@ -32,16 +36,24 @@ import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.visitor.GenericVisitorAdapter;
+import com.github.javaparser.printer.YamlPrinter;
 
 public class CompilationUnitVisitor implements Consumer<String> {
+
+    /** Logger reference to output information to the application log files */
+    private final Logger logger = LoggerFactory.getLogger(getClass());
 
     private final Set<String> unreferencedClasses;
 
     private final BiConsumer<String, String> referenceConsumer;
 
-    public CompilationUnitVisitor(Set<String> unreferencedClasses, BiConsumer<String, String> referenceConsumer) {
+    private final Optional<String> traceClass;
+
+    public CompilationUnitVisitor(Set<String> unreferencedClasses, BiConsumer<String, String> referenceConsumer,
+            @Nullable String traceClass) {
         this.unreferencedClasses = Objects.requireNonNull(unreferencedClasses);
         this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
+        this.traceClass = Optional.ofNullable(traceClass);
     }
 
     @Override
@@ -52,6 +64,8 @@ public class CompilationUnitVisitor implements Consumer<String> {
         FieldAccessVisitor fieldAccessVisitor = new FieldAccessVisitor();
 
         compilationUnit.accept(fieldAccessVisitor, null);
+
+        logTracing(compilationUnit);
 
         String currentClassName = compilationUnit.getPrimaryTypeName().orElse("");
 
@@ -81,6 +95,19 @@ public class CompilationUnitVisitor implements Consumer<String> {
         .filter(classToFind -> fieldClassesAccess.contains(allowedSimpleNameReferences.get(classToFind)))
         .forEach(classFound -> referenceConsumer.accept(classFound,
                 Strings.format("%s simple name reference", currentClassName)));
+    }
+
+    private void logTracing(CompilationUnit compilationUnit) {
+        String packageName = compilationUnit.getPackageDeclaration()
+                .map(PackageDeclaration::getNameAsString)
+                .orElse("");
+
+        String currentClassName = compilationUnit.getPrimaryTypeName().orElse("");
+
+        if (Objects.equals(packageName + "." + currentClassName, traceClass.orElse(null))) {
+            YamlPrinter printer = new YamlPrinter(true);
+            logger.info("{} AST Tree: {}", traceClass.orElse(null), printer.output(compilationUnit));
+        }
     }
 
     private Collection<String> findNonStaticImports(Set<String> classesToFind, CompilationUnit compilationUnit) {
