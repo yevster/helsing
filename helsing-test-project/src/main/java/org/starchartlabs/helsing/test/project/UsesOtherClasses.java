@@ -20,6 +20,11 @@ import org.starchartlabs.helsing.test.project.other.UsedByConstantImported;
 @ClassAnnotation(UsedByAnnotationConstantSimpleName.CONSTANT)
 public class UsesOtherClasses extends UsedViaExtension {
 
+    public static final String CLASS_NAME = UsedByClassName.class.getName();
+
+    public static final String CLASS_NAME_QUALIFIED = org.starchartlabs.helsing.test.project.other.UsedByClassName.class
+            .getName();
+
     @MethodAnnotation(org.starchartlabs.helsing.test.project.UsedByAnnotationConstantFullName.CONSTANT)
     public int getThing(@FieldAnnotation String input) {
         return new UsedViaSimpleMethod().add(1, 2) + input.length();

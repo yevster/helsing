@@ -85,6 +85,12 @@ public class DeadClassAnalyzerTest {
     }
 
     @Test
+    public void foundUseByClassName() throws Exception {
+        Assert.assertFalse(analysisResult.contains("org.starchartlabs.helsing.test.project.UsedByClassName"),
+                "Expected class used via class object reference to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
     public void foundUseViaClassAnnotation() throws Exception {
         Assert.assertFalse(analysisResult.contains("org.starchartlabs.helsing.test.project.ClassAnnotation"),
                 "Expected class used via annotation on class to not be marked as dead (should be used by test class UsesOtherClasses)");
@@ -147,6 +153,12 @@ public class DeadClassAnalyzerTest {
         Assert.assertFalse(
                 analysisResult.contains("org.starchartlabs.helsing.test.project.other.UsedByConstantFullName"),
                 "Expected class used via constant in different package with qualified name to not be marked as dead (should be used by test class UsesOtherClasses)");
+    }
+
+    @Test
+    public void foundUseByClassNameDifferentPackageQualifiedName() throws Exception {
+        Assert.assertFalse(analysisResult.contains("org.starchartlabs.helsing.test.project.other.UsedByClassName"),
+                "Expected class used via class object reference in different package to not be marked as dead (should be used by test class UsesOtherClasses)");
     }
 
 }
