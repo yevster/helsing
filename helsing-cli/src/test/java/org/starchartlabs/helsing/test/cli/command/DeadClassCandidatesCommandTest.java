@@ -43,6 +43,7 @@ public class DeadClassCandidatesCommandTest {
         CLASS_NAMES.add("org.starchartlabs.helsing.test.project.MethodAnnotation");
         CLASS_NAMES.add("org.starchartlabs.helsing.test.project.UsedByAnnotationConstantFullName");
         CLASS_NAMES.add("org.starchartlabs.helsing.test.project.UsedByAnnotationConstantSimpleName");
+        CLASS_NAMES.add("org.starchartlabs.helsing.test.project.UsedByClassName");
         CLASS_NAMES.add("org.starchartlabs.helsing.test.project.UsedByConstantFullName");
         CLASS_NAMES.add("org.starchartlabs.helsing.test.project.UsedByConstantSimpleName");
         CLASS_NAMES.add("org.starchartlabs.helsing.test.project.UsedViaExtension");
@@ -51,6 +52,7 @@ public class DeadClassCandidatesCommandTest {
         CLASS_NAMES.add("org.starchartlabs.helsing.test.project.UsesOtherClasses");
         CLASS_NAMES.add("org.starchartlabs.helsing.test.project.other.UsedByConstantFullName");
         CLASS_NAMES.add("org.starchartlabs.helsing.test.project.other.UsedByConstantImported");
+        CLASS_NAMES.add("org.starchartlabs.helsing.test.project.other.UsedByClassName");
     }
 
     private final TestLogger testLogger = TestLoggerFactory.getTestLogger(DeadClassCandidatesCommand.class);
@@ -101,7 +103,8 @@ public class DeadClassCandidatesCommandTest {
     public void withIncludeFilter() throws Exception {
         List<String> expectedDeadClasses = Arrays.asList(
                 "org.starchartlabs.helsing.test.project.other.UsedByConstantFullName",
-                "org.starchartlabs.helsing.test.project.other.UsedByConstantImported");
+                "org.starchartlabs.helsing.test.project.other.UsedByConstantImported",
+                "org.starchartlabs.helsing.test.project.other.UsedByClassName");
 
         String[] args = new String[] { DeadClassCandidatesCommand.COMMAND_NAME, "--directory=" + TEST_PROJECT_DIRECTORY,
         "--include=org.starchartlabs.helsing.test.project.other.*" };
@@ -116,8 +119,8 @@ public class DeadClassCandidatesCommandTest {
                     .map(FormattingTuple::getMessage)
                     .collect(Collectors.toList());
 
-            Assert.assertTrue(events.contains("Found 2 classes with no detected references"),
-                    "Expected 2 classes marked as dead " + events);
+            Assert.assertTrue(events.contains("Found 3 classes with no detected references"),
+                    "Expected 3 classes marked as dead " + events);
 
             CLASS_NAMES.stream()
             .filter(a -> !expectedDeadClasses.contains(a))

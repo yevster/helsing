@@ -28,13 +28,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.starchartlabs.alloy.core.Strings;
 
-import com.github.javaparser.StaticJavaParser;
+import com.github.javaparser.JavaParser;
+import com.github.javaparser.ParseProblemException;
+import com.github.javaparser.ParseResult;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.PackageDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
+import com.github.javaparser.ast.expr.ClassExpr;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.visitor.GenericVisitorAdapter;
 import com.github.javaparser.printer.YamlPrinter;
 
@@ -49,60 +53,68 @@ public class CompilationUnitVisitor implements Consumer<String> {
 
     private final Optional<String> traceClass;
 
+    private final JavaParser parser;
+
     public CompilationUnitVisitor(Set<String> unreferencedClasses, BiConsumer<String, String> referenceConsumer,
             @Nullable String traceClass) {
         this.unreferencedClasses = Objects.requireNonNull(unreferencedClasses);
         this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
         this.traceClass = Optional.ofNullable(traceClass);
+
+        this.parser = new JavaParser();
     }
 
     @Override
     public void accept(String contents) {
         Objects.requireNonNull(contents);
 
-        CompilationUnit compilationUnit = StaticJavaParser.parse(contents);
-        FieldAccessVisitor fieldAccessVisitor = new FieldAccessVisitor();
+        ParseResult<CompilationUnit> parseResult = parser.parse(contents);
 
-        compilationUnit.accept(fieldAccessVisitor, null);
+        if (parseResult.isSuccessful()) {
+            CompilationUnit compilationUnit = parseResult.getResult().get();
+            FieldAccessVisitor fieldAccessVisitor = new FieldAccessVisitor();
 
-        logTracing(compilationUnit);
+            compilationUnit.accept(fieldAccessVisitor, null);
 
-        String currentClassName = compilationUnit.getPrimaryTypeName().orElse("");
+            String currentClassName = compilationUnit.getType(0).getNameAsString();
 
-        // Find direct imports of classes
-        findNonStaticImports(unreferencedClasses, compilationUnit).stream()
-        .forEach(used -> referenceConsumer.accept(used, Strings.format("%s import", currentClassName)));
+            logTracing(compilationUnit, currentClassName);
 
-        findStaticImports(unreferencedClasses, compilationUnit).stream()
-        .forEach(used -> referenceConsumer.accept(used, Strings.format("%s static import", currentClassName)));
+            // Find direct imports of classes
+            findNonStaticImports(unreferencedClasses, compilationUnit).stream()
+            .forEach(used -> referenceConsumer.accept(used, Strings.format("%s import", currentClassName)));
 
-        // Find uses of classes by simple name
-        Map<String, String> allowedSimpleNameReferences = getValidSimpleNameReferences(unreferencedClasses,
-                compilationUnit);
+            findStaticImports(unreferencedClasses, compilationUnit).stream()
+            .forEach(used -> referenceConsumer.accept(used, Strings.format("%s static import", currentClassName)));
 
-        // Find uses of classes by fully qualified name
-        Set<String> fieldClassesAccess = fieldAccessVisitor.getFieldClassesAccessed();
+            // Find uses of classes by simple name
+            Map<String, String> allowedSimpleNameReferences = getValidSimpleNameReferences(unreferencedClasses,
+                    compilationUnit);
 
-        // Record fully qualified uses
-        unreferencedClasses.stream()
-        .filter(fieldClassesAccess::contains)
-        .forEach(classFound -> referenceConsumer.accept(classFound,
-                Strings.format("%s fully qualified reference", currentClassName)));
+            // Find uses of classes by fully qualified name
+            Set<String> fieldClassesAccess = fieldAccessVisitor.getFieldClassesAccessed();
 
-        // Record simple name uses
-        unreferencedClasses.stream()
-        .filter(allowedSimpleNameReferences::containsKey)
-        .filter(classToFind -> fieldClassesAccess.contains(allowedSimpleNameReferences.get(classToFind)))
-        .forEach(classFound -> referenceConsumer.accept(classFound,
-                Strings.format("%s simple name reference", currentClassName)));
+            // Record fully qualified uses
+            unreferencedClasses.stream()
+            .filter(fieldClassesAccess::contains)
+            .forEach(classFound -> referenceConsumer.accept(classFound,
+                    Strings.format("%s fully qualified reference", currentClassName)));
+
+            // Record simple name uses
+            unreferencedClasses.stream()
+            .filter(allowedSimpleNameReferences::containsKey)
+            .filter(classToFind -> fieldClassesAccess.contains(allowedSimpleNameReferences.get(classToFind)))
+            .forEach(classFound -> referenceConsumer.accept(classFound,
+                    Strings.format("%s simple name reference", currentClassName)));
+        } else {
+            throw new ParseProblemException(parseResult.getProblems());
+        }
     }
 
-    private void logTracing(CompilationUnit compilationUnit) {
+    private void logTracing(CompilationUnit compilationUnit, String currentClassName) {
         String packageName = compilationUnit.getPackageDeclaration()
                 .map(PackageDeclaration::getNameAsString)
                 .orElse("");
-
-        String currentClassName = compilationUnit.getPrimaryTypeName().orElse("");
 
         if (Objects.equals(packageName + "." + currentClassName, traceClass.orElse(null))) {
             YamlPrinter printer = new YamlPrinter(true);
@@ -171,6 +183,17 @@ public class CompilationUnitVisitor implements Consumer<String> {
         }
 
         @Override
+        public String visit(ClassExpr n, String arg) {
+            String found = n.getType().accept(new NameBuildingVisitor(), null);
+
+            if (found != null && !found.trim().isEmpty()) {
+                fieldClassesAccessed.add(found);
+            }
+
+            return null;
+        }
+
+        @Override
         public String visit(FieldAccessExpr n, String arg) {
             String found = n.getScope().accept(new NameBuildingVisitor(), null);
 
@@ -184,6 +207,15 @@ public class CompilationUnitVisitor implements Consumer<String> {
     }
 
     private static final class NameBuildingVisitor extends GenericVisitorAdapter<String, String> {
+
+        @Override
+        public String visit(ClassOrInterfaceType n, String arg) {
+            String combinedName = n.getNameAsString() + (arg != null ? "." + arg : "");
+
+            return n.getScope()
+                    .map(scope -> scope.accept(this, combinedName))
+                    .orElse(combinedName);
+        }
 
         @Override
         public String visit(FieldAccessExpr n, String arg) {
