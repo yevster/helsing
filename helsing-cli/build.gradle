@@ -15,6 +15,12 @@ eclipse{
     }
 }
 
+project.sourceSets {
+    main {
+        runtimeClasspath += configurations.capsuleRuntime
+    }
+}
+
 //Dependency versions managed in ${rootDir}/dependencies.properties
 dependencies {
 	compileOnly 'com.google.code.findbugs:jsr305'
