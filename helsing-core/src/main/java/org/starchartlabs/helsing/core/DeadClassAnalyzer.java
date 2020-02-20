@@ -85,10 +85,9 @@ public class DeadClassAnalyzer {
         Predicate<Path> includedApplicationClassesFilter = fileFilter.and(externalApiFileFilter);
 
         AvailableClassVisitor classVisitor = new AvailableClassVisitor(AsmUtils.ASM_API);
-        ClassFileVisitor fileVisitor = new ClassFileVisitor(classVisitor, includedApplicationClassesFilter);
 
         // Traverse the class files of the given directory and determine which should be analyzed for uses
-        Files.walkFileTree(directory, fileVisitor);
+        Files.walkFileTree(directory, classVisitor.getFileVisitor(includedApplicationClassesFilter));
 
         return classVisitor.getClassNames();
     }
