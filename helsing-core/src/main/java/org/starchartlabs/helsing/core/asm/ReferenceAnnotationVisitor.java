@@ -11,32 +11,31 @@
 package org.starchartlabs.helsing.core.asm;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 import javax.annotation.Nullable;
 
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.Type;
 import org.starchartlabs.alloy.core.Strings;
+import org.starchartlabs.helsing.core.model.ClassUseConsumer;
 
 //TODO romeara
 public class ReferenceAnnotationVisitor extends AnnotationVisitor {
 
-    private final String currentInternalClassName;
+    private final String currentClassName;
 
     // classname/how-used
-    private final BiConsumer<String, String> referenceConsumer;
+    private final ClassUseConsumer referenceConsumer;
 
-    public ReferenceAnnotationVisitor(int api, String currentInternalClassName,
-            BiConsumer<String, String> referenceConsumer) {
-        this(api, currentInternalClassName, referenceConsumer, null);
+    public ReferenceAnnotationVisitor(int api, String currentClassName, ClassUseConsumer referenceConsumer) {
+        this(api, currentClassName, referenceConsumer, null);
     }
 
-    public ReferenceAnnotationVisitor(int api, String currentInternalClassName,
-            BiConsumer<String, String> referenceConsumer, @Nullable AnnotationVisitor annotationVisitor) {
+    public ReferenceAnnotationVisitor(int api, String currentClassName, ClassUseConsumer referenceConsumer,
+            @Nullable AnnotationVisitor annotationVisitor) {
         super(api, annotationVisitor);
 
-        this.currentInternalClassName = Objects.requireNonNull(currentInternalClassName);
+        this.currentClassName = Objects.requireNonNull(currentClassName);
         this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
     }
 
@@ -45,8 +44,7 @@ public class ReferenceAnnotationVisitor extends AnnotationVisitor {
         if (value instanceof Type) {
             Type valueType = (Type) value;
 
-            String context = Strings.format("%s annotation '%s' value",
-                    AsmUtils.toExternalName(currentInternalClassName), name);
+            String context = Strings.format("%s annotation '%s' value", currentClassName, name);
             registerUsedClass(valueType.getInternalName(), context);
         }
 
@@ -57,8 +55,7 @@ public class ReferenceAnnotationVisitor extends AnnotationVisitor {
     public void visitEnum(String name, String descriptor, String value) {
         Type enumType = Type.getType(descriptor);
 
-        String context = Strings.format("%s annotation '%s' enum value (%s)",
-                AsmUtils.toExternalName(currentInternalClassName), name, value);
+        String context = Strings.format("%s annotation '%s' enum value (%s)", currentClassName, name, value);
         registerUsedClass(enumType.getInternalName(), context);
 
         super.visitEnum(name, descriptor, value);
@@ -68,19 +65,19 @@ public class ReferenceAnnotationVisitor extends AnnotationVisitor {
     public AnnotationVisitor visitArray(String name) {
         AnnotationVisitor superVisitor = super.visitArray(name);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     @Override
     public AnnotationVisitor visitAnnotation(String name, String descriptor) {
         Type annotationType = Type.getType(descriptor);
 
-        String context = Strings.format("%s nested annotation", AsmUtils.toExternalName(currentInternalClassName));
+        String context = Strings.format("%s nested annotation", currentClassName);
         registerUsedClass(annotationType.getInternalName(), context);
 
         AnnotationVisitor superVisitor = super.visitAnnotation(name, descriptor);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     private int getAsmApi() {
@@ -93,8 +90,10 @@ public class ReferenceAnnotationVisitor extends AnnotationVisitor {
 
         // TODO log ignored self uses?
         // Referencing yourself doesn't count as a use
-        if (!Objects.equals(currentInternalClassName, internalClassName)) {
-            referenceConsumer.accept(AsmUtils.toExternalName(internalClassName), whereUsed);
+        String usedClassName = AsmUtils.toExternalName(internalClassName);
+
+        if (!Objects.equals(currentClassName, usedClassName)) {
+            referenceConsumer.recordUsedClass(usedClassName, currentClassName, whereUsed);
         }
     }
 

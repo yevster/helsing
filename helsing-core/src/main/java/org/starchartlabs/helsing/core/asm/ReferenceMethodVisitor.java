@@ -11,7 +11,6 @@
 package org.starchartlabs.helsing.core.asm;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 import javax.annotation.Nullable;
 
@@ -23,27 +22,27 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.TypePath;
 import org.starchartlabs.alloy.core.Strings;
+import org.starchartlabs.helsing.core.model.ClassUseConsumer;
 
 //TODO romeara
 public class ReferenceMethodVisitor extends MethodVisitor {
 
-    private final String currentInternalClassName;
+    private final String currentClassName;
 
     // classname/how-used
-    private final BiConsumer<String, String> referenceConsumer;
+    private final ClassUseConsumer referenceConsumer;
 
     private Integer currentLine;
 
-    public ReferenceMethodVisitor(int api, String currentInternalClassName,
-            BiConsumer<String, String> referenceConsumer) {
-        this(api, currentInternalClassName, referenceConsumer, null);
+    public ReferenceMethodVisitor(int api, String currentClassName, ClassUseConsumer referenceConsumer) {
+        this(api, currentClassName, referenceConsumer, null);
     }
 
-    public ReferenceMethodVisitor(int api, String currentInternalClassName,
-            BiConsumer<String, String> referenceConsumer, @Nullable MethodVisitor methodVisitor) {
+    public ReferenceMethodVisitor(int api, String currentClassName, ClassUseConsumer referenceConsumer,
+            @Nullable MethodVisitor methodVisitor) {
         super(api, methodVisitor);
 
-        this.currentInternalClassName = Objects.requireNonNull(currentInternalClassName);
+        this.currentClassName = Objects.requireNonNull(currentClassName);
         this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
 
         currentLine = null;
@@ -93,7 +92,7 @@ public class ReferenceMethodVisitor extends MethodVisitor {
 
         AnnotationVisitor superVisitor = super.visitAnnotation(descriptor, visible);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     @Override
@@ -105,7 +104,7 @@ public class ReferenceMethodVisitor extends MethodVisitor {
 
         AnnotationVisitor superVisitor = super.visitTypeAnnotation(typeRef, typePath, descriptor, visible);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     @Override
@@ -116,7 +115,7 @@ public class ReferenceMethodVisitor extends MethodVisitor {
 
         AnnotationVisitor superVisitor = super.visitParameterAnnotation(parameter, descriptor, visible);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     @Override
@@ -129,7 +128,7 @@ public class ReferenceMethodVisitor extends MethodVisitor {
         AnnotationVisitor superVisitor = super.visitLocalVariableAnnotation(typeRef, typePath, start, end, index,
                 descriptor, visible);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     private int getAsmApi() {
@@ -142,8 +141,10 @@ public class ReferenceMethodVisitor extends MethodVisitor {
 
         // TODO log ignored self uses?
         // Referencing yourself doesn't count as a use
-        if (!Objects.equals(currentInternalClassName, internalClassName)) {
-            referenceConsumer.accept(AsmUtils.toExternalName(internalClassName), whereUsed);
+        String usedClassName = AsmUtils.toExternalName(internalClassName);
+
+        if (!Objects.equals(currentClassName, usedClassName)) {
+            referenceConsumer.recordUsedClass(AsmUtils.toExternalName(internalClassName), currentClassName, whereUsed);
         }
     }
 
@@ -187,7 +188,7 @@ public class ReferenceMethodVisitor extends MethodVisitor {
         String method = (methodName != null ? ":" + methodName : "");
         String lineNumber = currentLine != null ? currentLine.toString() : "";
 
-        return Strings.format("%s%s (%s)[%s]", currentInternalClassName, method, context, lineNumber);
+        return Strings.format("%s%s (%s)[%s]", currentClassName, method, context, lineNumber);
     }
 
 }

@@ -11,7 +11,6 @@
 package org.starchartlabs.helsing.core.asm;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 import javax.annotation.Nullable;
 
@@ -20,25 +19,25 @@ import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.TypePath;
 import org.starchartlabs.alloy.core.Strings;
+import org.starchartlabs.helsing.core.model.ClassUseConsumer;
 
 //TODO romeara
 public class ReferenceFieldVisitor extends FieldVisitor {
 
-    private final String currentInternalClassName;
+    private final String currentClassName;
 
     // classname/how-used
-    private final BiConsumer<String, String> referenceConsumer;
+    private final ClassUseConsumer referenceConsumer;
 
-    public ReferenceFieldVisitor(int api, String currentInternalClassName,
-            BiConsumer<String, String> referenceConsumer) {
-        this(api, currentInternalClassName, referenceConsumer, null);
+    public ReferenceFieldVisitor(int api, String currentClassName, ClassUseConsumer referenceConsumer) {
+        this(api, currentClassName, referenceConsumer, null);
     }
 
-    public ReferenceFieldVisitor(int api, String currentInternalClassName,
-            BiConsumer<String, String> referenceConsumer, @Nullable FieldVisitor fieldVisitor) {
+    public ReferenceFieldVisitor(int api, String currentClassName, ClassUseConsumer referenceConsumer,
+            @Nullable FieldVisitor fieldVisitor) {
         super(api, fieldVisitor);
 
-        this.currentInternalClassName = Objects.requireNonNull(currentInternalClassName);
+        this.currentClassName = Objects.requireNonNull(currentClassName);
         this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
     }
 
@@ -46,12 +45,11 @@ public class ReferenceFieldVisitor extends FieldVisitor {
     public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
         Type annotationType = Type.getType(descriptor);
 
-        registerUsedClass(annotationType.getInternalName(),
-                Strings.format("%s field annotation", AsmUtils.toExternalName(currentInternalClassName)));
+        registerUsedClass(annotationType.getInternalName(), Strings.format("%s field annotation", currentClassName));
 
         AnnotationVisitor superVisitor = super.visitAnnotation(descriptor, visible);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     @Override
@@ -59,11 +57,11 @@ public class ReferenceFieldVisitor extends FieldVisitor {
         Type annotationType = Type.getType(descriptor);
 
         registerUsedClass(annotationType.getInternalName(),
-                Strings.format("%s field type annotation", AsmUtils.toExternalName(currentInternalClassName)));
+                Strings.format("%s field type annotation", currentClassName));
 
         AnnotationVisitor superVisitor = super.visitTypeAnnotation(typeRef, typePath, descriptor, visible);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     private int getAsmApi() {
@@ -76,8 +74,10 @@ public class ReferenceFieldVisitor extends FieldVisitor {
 
         // TODO log ignored self uses?
         // Referencing yourself doesn't count as a use
-        if (!Objects.equals(currentInternalClassName, internalClassName)) {
-            referenceConsumer.accept(AsmUtils.toExternalName(internalClassName), whereUsed);
+        String usedClassName = AsmUtils.toExternalName(internalClassName);
+
+        if (!Objects.equals(currentClassName, usedClassName)) {
+            referenceConsumer.recordUsedClass(usedClassName, currentClassName, whereUsed);
         }
     }
 

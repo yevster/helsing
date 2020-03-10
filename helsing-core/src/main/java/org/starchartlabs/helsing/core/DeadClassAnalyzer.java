@@ -31,6 +31,7 @@ import org.starchartlabs.helsing.core.asm.ClassFileVisitor;
 import org.starchartlabs.helsing.core.asm.ReferenceClassVisitor;
 import org.starchartlabs.helsing.core.ast.CompilationUnitVisitor;
 import org.starchartlabs.helsing.core.ast.SourceFileVisitor;
+import org.starchartlabs.helsing.core.model.ClassUseConsumer;
 
 //TODO romeara
 public class DeadClassAnalyzer {
@@ -98,15 +99,15 @@ public class DeadClassAnalyzer {
         Objects.requireNonNull(fileFilter);
         Objects.requireNonNull(unusedClasses);
 
-        ReferenceConsumer referenceConsumer = new ReferenceConsumer(unusedClasses);
+        ClassUseConsumer consumer = new ClassUseConsumer(unusedClasses, traceClass.orElse(null));
 
-        ReferenceClassVisitor classVisitor = new ReferenceClassVisitor(AsmUtils.ASM_API, referenceConsumer);
+        ReferenceClassVisitor classVisitor = new ReferenceClassVisitor(AsmUtils.ASM_API, consumer);
         ClassFileVisitor fileVisitor = new ClassFileVisitor(classVisitor, fileFilter);
 
         // Traverse the class files of the given directory and find bytecode-accessible references to relevant classes
         Files.walkFileTree(directory, fileVisitor);
 
-        return referenceConsumer.getUnusedClasses();
+        return consumer.getUnusedClasses();
     }
 
     private Set<String> removeConstantReferences(Path directory, Predicate<Path> fileFilter, Set<String> unusedClasses)
