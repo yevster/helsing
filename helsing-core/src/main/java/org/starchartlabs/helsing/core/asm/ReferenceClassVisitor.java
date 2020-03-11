@@ -11,7 +11,6 @@
 package org.starchartlabs.helsing.core.asm;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import org.objectweb.asm.AnnotationVisitor;
@@ -21,32 +20,30 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.TypePath;
 import org.starchartlabs.alloy.core.Strings;
+import org.starchartlabs.helsing.core.model.ClassUseConsumer;
 
 // TODO romeara
 public class ReferenceClassVisitor extends ClassVisitor {
 
     // classname/how-used
-    private final BiConsumer<String, String> referenceConsumer;
+    private final ClassUseConsumer referenceConsumer;
 
-    private String currentInternalClassName;
+    private String currentClassName;
 
-    public ReferenceClassVisitor(int api, BiConsumer<String, String> referenceConsumer) {
-        super(api);
-
-        this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
-        currentInternalClassName = null;
+    public ReferenceClassVisitor(int api, ClassUseConsumer referenceConsumer) {
+        this(api, referenceConsumer, null);
     }
 
-    public ReferenceClassVisitor(int api, ClassVisitor classVisitor, BiConsumer<String, String> referenceConsumer) {
+    public ReferenceClassVisitor(int api, ClassUseConsumer referenceConsumer, ClassVisitor classVisitor) {
         super(api, classVisitor);
 
         this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
-        currentInternalClassName = null;
+        currentClassName = null;
     }
 
     @Override
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-        currentInternalClassName = name;
+        currentClassName = AsmUtils.toExternalName(name);
         String externalClassName = AsmUtils.toExternalName(name);
 
         registerUsedClass(superName, Strings.format("Super of %s", externalClassName));
@@ -64,41 +61,38 @@ public class ReferenceClassVisitor extends ClassVisitor {
     public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
         Type annotationType = Type.getType(descriptor);
 
-        registerUsedClass(annotationType.getInternalName(),
-                Strings.format("%s type annotation", AsmUtils.toExternalName(currentInternalClassName)));
+        registerUsedClass(annotationType.getInternalName(), Strings.format("%s type annotation", currentClassName));
 
         AnnotationVisitor superVisitor = super.visitTypeAnnotation(typeRef, typePath, descriptor, visible);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     @Override
     public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
         Type annotationType = Type.getType(descriptor);
 
-        registerUsedClass(annotationType.getInternalName(),
-                Strings.format("%s annotation", AsmUtils.toExternalName(currentInternalClassName)));
+        registerUsedClass(annotationType.getInternalName(), Strings.format("%s annotation", currentClassName));
 
         AnnotationVisitor superVisitor = super.visitAnnotation(descriptor, visible);
 
-        return new ReferenceAnnotationVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceAnnotationVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     @Override
     public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
         Type fieldType = Type.getType(descriptor);
 
-        registerUsedClass(fieldType.getInternalName(),
-                Strings.format("%s class field", AsmUtils.toExternalName(currentInternalClassName)));
+        registerUsedClass(fieldType.getInternalName(), Strings.format("%s class field", currentClassName));
 
         FieldVisitor superVisitor = super.visitField(access, name, descriptor, signature, value);
 
-        return new ReferenceFieldVisitor(getAsmApi(), currentInternalClassName, referenceConsumer, superVisitor);
+        return new ReferenceFieldVisitor(getAsmApi(), currentClassName, referenceConsumer, superVisitor);
     }
 
     @Override
     public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
-        String qualifiedMethodName = AsmUtils.toExternalName(currentInternalClassName) + "." + name;
+        String qualifiedMethodName = currentClassName + "." + name;
 
         // Register types for returns and arguments
         Type methodType = Type.getMethodType(desc);
@@ -109,7 +103,7 @@ public class ReferenceClassVisitor extends ClassVisitor {
         Stream.of(methodType.getArgumentTypes())
         .map(Type::getInternalName)
         .forEach(argumentType -> registerUsedClass(argumentType,
-                        Strings.format("%s declared method argument", qualifiedMethodName)));
+                Strings.format("%s declared method argument", qualifiedMethodName)));
 
         if (exceptions != null) {
             for (String exceptionName : exceptions) {
@@ -121,14 +115,14 @@ public class ReferenceClassVisitor extends ClassVisitor {
 
         return new ReferenceMethodVisitor(
                 getAsmApi(),
-                currentInternalClassName,
+                currentClassName,
                 referenceConsumer,
                 superVisitor);
     }
 
     @Override
     public void visitEnd() {
-        currentInternalClassName = null;
+        currentClassName = null;
 
         super.visitEnd();
     }
@@ -143,8 +137,10 @@ public class ReferenceClassVisitor extends ClassVisitor {
 
         // TODO log ignored self uses?
         // Referencing yourself doesn't count as a use
-        if (!Objects.equals(currentInternalClassName, internalClassName)) {
-            referenceConsumer.accept(AsmUtils.toExternalName(internalClassName), whereUsed);
+        String usedClassName = AsmUtils.toExternalName(internalClassName);
+
+        if (!Objects.equals(currentClassName, usedClassName)) {
+            referenceConsumer.recordUsedClass(usedClassName, currentClassName, whereUsed);
         }
     }
 
