@@ -13,11 +13,9 @@ package org.starchartlabs.helsing.core;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -58,23 +56,24 @@ public class DeadClassAnalyzer {
 
         // Find all available classes to evaluate as used or unused
         Set<String> unusedClasses = findAvailableClasses(directory, fileFilter);
+        ClassUseConsumer consumer = new ClassUseConsumer(unusedClasses, traceClass.orElse(null));
 
-        logger.info("Found {} classes to analyze", unusedClasses.size());
+        logger.info("Found {} classes to analyze", consumer.getUnusedClasses().size());
 
         // Process byte-code references within the directory
-        unusedClasses = removeStructuralUses(directory, fileFilter, unusedClasses);
+        consumer = removeStructuralUses(directory, fileFilter, consumer);
 
         // If classes remain without uses, do a more detailed source analysis for things like references to constants
-        if (!unusedClasses.isEmpty()) {
+        if (!consumer.getUnusedClasses().isEmpty()) {
             logger.info("{} classes are not referenced in ways detectable in byte-code - checking source",
-                    unusedClasses.size());
+                    consumer.getUnusedClasses().size());
 
-            unusedClasses = removeConstantReferences(directory, fileFilter, unusedClasses);
+            consumer = removeConstantReferences(directory, fileFilter, consumer);
         }
 
-        logger.info("{} unused classes found", unusedClasses.size());
+        logger.info("{} unused classes found", consumer.getUnusedClasses().size());
 
-        return unusedClasses;
+        return consumer.getUnusedClasses();
     }
 
     private Set<String> findAvailableClasses(Path directory, Predicate<Path> fileFilter) throws IOException {
@@ -93,13 +92,11 @@ public class DeadClassAnalyzer {
         return classVisitor.getClassNames();
     }
 
-    private Set<String> removeStructuralUses(Path directory, Predicate<Path> fileFilter, Set<String> unusedClasses)
+    private ClassUseConsumer removeStructuralUses(Path directory, Predicate<Path> fileFilter, ClassUseConsumer consumer)
             throws IOException {
         Objects.requireNonNull(directory);
         Objects.requireNonNull(fileFilter);
-        Objects.requireNonNull(unusedClasses);
-
-        ClassUseConsumer consumer = new ClassUseConsumer(unusedClasses, traceClass.orElse(null));
+        Objects.requireNonNull(consumer);
 
         ReferenceClassVisitor classVisitor = new ReferenceClassVisitor(AsmUtils.ASM_API, consumer);
         ClassFileVisitor fileVisitor = new ClassFileVisitor(classVisitor, fileFilter);
@@ -107,48 +104,23 @@ public class DeadClassAnalyzer {
         // Traverse the class files of the given directory and find bytecode-accessible references to relevant classes
         Files.walkFileTree(directory, fileVisitor);
 
-        return consumer.getUnusedClasses();
+        return consumer;
     }
 
-    private Set<String> removeConstantReferences(Path directory, Predicate<Path> fileFilter, Set<String> unusedClasses)
+    private ClassUseConsumer removeConstantReferences(Path directory, Predicate<Path> fileFilter,
+            ClassUseConsumer consumer)
             throws IOException {
         Objects.requireNonNull(directory);
         Objects.requireNonNull(fileFilter);
-        Objects.requireNonNull(unusedClasses);
+        Objects.requireNonNull(consumer);
 
-        ReferenceConsumer referenceConsumer = new ReferenceConsumer(unusedClasses);
-
-        CompilationUnitVisitor sourceVisitor = new CompilationUnitVisitor(unusedClasses, referenceConsumer,
-                traceClass.orElse(null));
+        CompilationUnitVisitor sourceVisitor = new CompilationUnitVisitor(consumer);
         SourceFileVisitor fileVisitor = new SourceFileVisitor(sourceVisitor, fileFilter);
 
         // Traverse the class files of the given directory and find source-accessible references to relevant classes
         Files.walkFileTree(directory, fileVisitor);
 
-        return referenceConsumer.getUnusedClasses();
-    }
-
-    private final class ReferenceConsumer implements BiConsumer<String, String> {
-
-        private final Set<String> workingUses;
-
-        public ReferenceConsumer(Set<String> unusedClasses) {
-            workingUses = new HashSet<>(unusedClasses);
-        }
-
-        @Override
-        public void accept(String className, String useContext) {
-            workingUses.remove(className);
-
-            traceClass
-            .filter(t -> Objects.equals(className, t))
-            .ifPresent(a -> logger.info("{} use: {}", className, useContext));
-        }
-
-        public Set<String> getUnusedClasses() {
-            return workingUses;
-        }
-
+        return consumer;
     }
 
 }
