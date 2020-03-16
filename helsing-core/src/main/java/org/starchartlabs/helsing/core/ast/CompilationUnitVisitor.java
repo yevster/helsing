@@ -16,7 +16,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -27,6 +26,7 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.starchartlabs.alloy.core.Strings;
+import org.starchartlabs.helsing.core.model.ClassUseConsumer;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseProblemException;
@@ -49,13 +49,13 @@ public class CompilationUnitVisitor implements Consumer<String> {
 
     private final Set<String> unreferencedClasses;
 
-    private final BiConsumer<String, String> referenceConsumer;
+    private final ClassUseConsumer referenceConsumer;
 
     private final Optional<String> traceClass;
 
     private final JavaParser parser;
 
-    public CompilationUnitVisitor(Set<String> unreferencedClasses, BiConsumer<String, String> referenceConsumer,
+    public CompilationUnitVisitor(Set<String> unreferencedClasses, ClassUseConsumer referenceConsumer,
             @Nullable String traceClass) {
         this.unreferencedClasses = Objects.requireNonNull(unreferencedClasses);
         this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
@@ -76,16 +76,18 @@ public class CompilationUnitVisitor implements Consumer<String> {
 
             compilationUnit.accept(fieldAccessVisitor, null);
 
-            String currentClassName = compilationUnit.getType(0).getNameAsString();
+            String currentClassName = getQualifiedName(compilationUnit);
 
             logTracing(compilationUnit, currentClassName);
 
             // Find direct imports of classes
             findNonStaticImports(unreferencedClasses, compilationUnit).stream()
-            .forEach(used -> referenceConsumer.accept(used, Strings.format("%s import", currentClassName)));
+            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName,
+                            Strings.format("%s import", currentClassName)));
 
             findStaticImports(unreferencedClasses, compilationUnit).stream()
-            .forEach(used -> referenceConsumer.accept(used, Strings.format("%s static import", currentClassName)));
+            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName,
+                            Strings.format("%s static import", currentClassName)));
 
             // Find uses of classes by simple name
             Map<String, String> allowedSimpleNameReferences = getValidSimpleNameReferences(unreferencedClasses,
@@ -97,26 +99,33 @@ public class CompilationUnitVisitor implements Consumer<String> {
             // Record fully qualified uses
             unreferencedClasses.stream()
             .filter(fieldClassesAccess::contains)
-            .forEach(classFound -> referenceConsumer.accept(classFound,
-                    Strings.format("%s fully qualified reference", currentClassName)));
+            .forEach(classFound -> referenceConsumer.recordUsedClass(classFound, currentClassName,
+                            Strings.format("%s fully qualified reference", currentClassName)));
 
             // Record simple name uses
             unreferencedClasses.stream()
             .filter(allowedSimpleNameReferences::containsKey)
             .filter(classToFind -> fieldClassesAccess.contains(allowedSimpleNameReferences.get(classToFind)))
-            .forEach(classFound -> referenceConsumer.accept(classFound,
-                    Strings.format("%s simple name reference", currentClassName)));
+                    .forEach(classFound -> referenceConsumer.recordUsedClass(classFound, currentClassName,
+                            Strings.format("%s simple name reference", currentClassName)));
         } else {
             throw new ParseProblemException(parseResult.getProblems());
         }
     }
 
-    private void logTracing(CompilationUnit compilationUnit, String currentClassName) {
-        String packageName = compilationUnit.getPackageDeclaration()
-                .map(PackageDeclaration::getNameAsString)
-                .orElse("");
+    private String getQualifiedName(CompilationUnit compilationUnit) {
+        Optional<String> packageName = compilationUnit.getPackageDeclaration()
+                .map(PackageDeclaration::getNameAsString);
 
-        if (Objects.equals(packageName + "." + currentClassName, traceClass.orElse(null))) {
+        String className = compilationUnit.getType(0).getNameAsString();
+
+        return packageName
+                .map(pack -> pack + "." + className)
+                .orElse(className);
+    }
+
+    private void logTracing(CompilationUnit compilationUnit, String currentClassName) {
+        if (Objects.equals(currentClassName, traceClass.orElse(null))) {
             YamlPrinter printer = new YamlPrinter(true);
             logger.info("{} AST Tree: {}", traceClass.orElse(null), printer.output(compilationUnit));
         }

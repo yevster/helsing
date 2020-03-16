@@ -17,7 +17,6 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -116,39 +115,18 @@ public class DeadClassAnalyzer {
         Objects.requireNonNull(fileFilter);
         Objects.requireNonNull(unusedClasses);
 
-        ReferenceConsumer referenceConsumer = new ReferenceConsumer(unusedClasses);
+        // TODO refactor to make it unnecessary to new hashset this
+        ClassUseConsumer consumer = new ClassUseConsumer(new HashSet<>(unusedClasses), traceClass.orElse(null));
 
-        CompilationUnitVisitor sourceVisitor = new CompilationUnitVisitor(unusedClasses, referenceConsumer,
+        CompilationUnitVisitor sourceVisitor = new CompilationUnitVisitor(unusedClasses,
+                consumer,
                 traceClass.orElse(null));
         SourceFileVisitor fileVisitor = new SourceFileVisitor(sourceVisitor, fileFilter);
 
         // Traverse the class files of the given directory and find source-accessible references to relevant classes
         Files.walkFileTree(directory, fileVisitor);
 
-        return referenceConsumer.getUnusedClasses();
-    }
-
-    private final class ReferenceConsumer implements BiConsumer<String, String> {
-
-        private final Set<String> workingUses;
-
-        public ReferenceConsumer(Set<String> unusedClasses) {
-            workingUses = new HashSet<>(unusedClasses);
-        }
-
-        @Override
-        public void accept(String className, String useContext) {
-            workingUses.remove(className);
-
-            traceClass
-            .filter(t -> Objects.equals(className, t))
-            .ifPresent(a -> logger.info("{} use: {}", className, useContext));
-        }
-
-        public Set<String> getUnusedClasses() {
-            return workingUses;
-        }
-
+        return consumer.getUnusedClasses();
     }
 
 }
