@@ -13,7 +13,6 @@ package org.starchartlabs.helsing.core;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -115,12 +114,9 @@ public class DeadClassAnalyzer {
         Objects.requireNonNull(fileFilter);
         Objects.requireNonNull(unusedClasses);
 
-        // TODO refactor to make it unnecessary to new hashset this
-        ClassUseConsumer consumer = new ClassUseConsumer(new HashSet<>(unusedClasses), traceClass.orElse(null));
+        ClassUseConsumer consumer = new ClassUseConsumer(unusedClasses, traceClass.orElse(null));
 
-        CompilationUnitVisitor sourceVisitor = new CompilationUnitVisitor(unusedClasses,
-                consumer,
-                traceClass.orElse(null));
+        CompilationUnitVisitor sourceVisitor = new CompilationUnitVisitor(consumer);
         SourceFileVisitor fileVisitor = new SourceFileVisitor(sourceVisitor, fileFilter);
 
         // Traverse the class files of the given directory and find source-accessible references to relevant classes

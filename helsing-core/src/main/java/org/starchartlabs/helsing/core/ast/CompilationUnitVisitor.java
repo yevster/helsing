@@ -21,11 +21,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nullable;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.starchartlabs.alloy.core.Strings;
 import org.starchartlabs.helsing.core.model.ClassUseConsumer;
 
 import com.github.javaparser.JavaParser;
@@ -44,24 +39,17 @@ import com.github.javaparser.printer.YamlPrinter;
 
 public class CompilationUnitVisitor implements Consumer<String> {
 
-    /** Logger reference to output information to the application log files */
-    private final Logger logger = LoggerFactory.getLogger(getClass());
-
-    private final Set<String> unreferencedClasses;
-
     private final ClassUseConsumer referenceConsumer;
-
-    private final Optional<String> traceClass;
 
     private final JavaParser parser;
 
-    public CompilationUnitVisitor(Set<String> unreferencedClasses, ClassUseConsumer referenceConsumer,
-            @Nullable String traceClass) {
-        this.unreferencedClasses = Objects.requireNonNull(unreferencedClasses);
+    private final YamlPrinter yamlPrinter;
+
+    public CompilationUnitVisitor(ClassUseConsumer referenceConsumer) {
         this.referenceConsumer = Objects.requireNonNull(referenceConsumer);
-        this.traceClass = Optional.ofNullable(traceClass);
 
         this.parser = new JavaParser();
+        yamlPrinter = new YamlPrinter(true);
     }
 
     @Override
@@ -78,36 +66,50 @@ public class CompilationUnitVisitor implements Consumer<String> {
 
             String currentClassName = getQualifiedName(compilationUnit);
 
-            logTracing(compilationUnit, currentClassName);
+            referenceConsumer.recordClassTracing(currentClassName,
+                    () -> "AST Tree: " + yamlPrinter.output(compilationUnit));
 
             // Find direct imports of classes
-            findNonStaticImports(unreferencedClasses, compilationUnit).stream()
-            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName,
-                            Strings.format("%s import", currentClassName)));
+            Collection<String> nonStaticImports = findNonStaticImports(referenceConsumer.getUnusedClasses(),
+                    compilationUnit);
+            String importUse = currentClassName + " import";
 
-            findStaticImports(unreferencedClasses, compilationUnit).stream()
-            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName,
-                            Strings.format("%s static import", currentClassName)));
+            nonStaticImports.stream()
+            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, importUse));
+
+            // Deal with static import case
+            Collection<String> staticImports = findStaticImports(referenceConsumer.getUnusedClasses(), compilationUnit);
+            String staticImportUse = currentClassName + " static import";
+
+            staticImports.stream()
+            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, staticImportUse));
 
             // Find uses of classes by simple name
-            Map<String, String> allowedSimpleNameReferences = getValidSimpleNameReferences(unreferencedClasses,
+            Map<String, String> allowedSimpleNameReferences = getValidSimpleNameReferences(
+                    referenceConsumer.getUnusedClasses(),
                     compilationUnit);
 
             // Find uses of classes by fully qualified name
             Set<String> fieldClassesAccess = fieldAccessVisitor.getFieldClassesAccessed();
 
             // Record fully qualified uses
-            unreferencedClasses.stream()
-            .filter(fieldClassesAccess::contains)
-            .forEach(classFound -> referenceConsumer.recordUsedClass(classFound, currentClassName,
-                            Strings.format("%s fully qualified reference", currentClassName)));
+            Collection<String> fullyQualfiedAccess = referenceConsumer.getUnusedClasses().stream()
+                    .filter(fieldClassesAccess::contains)
+                    .collect(Collectors.toSet());
+            String qualifiedUse = currentClassName + " fully qualified reference";
+
+            fullyQualfiedAccess.stream()
+            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, qualifiedUse));
 
             // Record simple name uses
-            unreferencedClasses.stream()
-            .filter(allowedSimpleNameReferences::containsKey)
-            .filter(classToFind -> fieldClassesAccess.contains(allowedSimpleNameReferences.get(classToFind)))
-                    .forEach(classFound -> referenceConsumer.recordUsedClass(classFound, currentClassName,
-                            Strings.format("%s simple name reference", currentClassName)));
+            Collection<String> simpleNameAccess = referenceConsumer.getUnusedClasses().stream()
+                    .filter(allowedSimpleNameReferences::containsKey)
+                    .filter(classToFind -> fieldClassesAccess.contains(allowedSimpleNameReferences.get(classToFind)))
+                    .collect(Collectors.toSet());
+            String simpleNameUse = currentClassName + " simple name reference";
+
+            simpleNameAccess.stream()
+            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, simpleNameUse));
         } else {
             throw new ParseProblemException(parseResult.getProblems());
         }
@@ -122,13 +124,6 @@ public class CompilationUnitVisitor implements Consumer<String> {
         return packageName
                 .map(pack -> pack + "." + className)
                 .orElse(className);
-    }
-
-    private void logTracing(CompilationUnit compilationUnit, String currentClassName) {
-        if (Objects.equals(currentClassName, traceClass.orElse(null))) {
-            YamlPrinter printer = new YamlPrinter(true);
-            logger.info("{} AST Tree: {}", traceClass.orElse(null), printer.output(compilationUnit));
-        }
     }
 
     private Collection<String> findNonStaticImports(Set<String> classesToFind, CompilationUnit compilationUnit) {
