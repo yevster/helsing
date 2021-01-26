@@ -4,15 +4,14 @@ description = 'Core implementations for analyzing a code base for unused code'
 dependencies {
 	compileOnly 'com.google.code.findbugs:jsr305'
     
-    compile 'com.github.javaparser:javaparser-core'
-    compile 'org.ow2.asm:asm'
-    compile 'org.slf4j:slf4j-api'
-    compile 'org.starchartlabs.alloy:alloy-core'
-    
-    testCompile 'org.testng:testng'
-    
-    testRuntime project(':helsing-test-project')
-    testRuntime 'org.slf4j:slf4j-simple'
+    api 'com.github.javaparser:javaparser-core'
+    api 'org.ow2.asm:asm'
+    api 'org.slf4j:slf4j-api'
+    api 'org.starchartlabs.alloy:alloy-core'
+
+    testImplementation project(':helsing-test-project')
+    testImplementation 'org.slf4j:slf4j-simple'
+    testImplementation 'org.testng:testng'
 }
 
 // Configure tests with directory for test project

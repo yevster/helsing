@@ -25,20 +25,18 @@ project.sourceSets {
 dependencies {
 	compileOnly 'com.google.code.findbugs:jsr305'
     
-    compile project(':helsing-core')
-    
-    compile 'com.github.javaparser:javaparser-core'
-    compile 'info.picocli:picocli'
-    compile 'org.ow2.asm:asm'
-    compile 'org.slf4j:slf4j-api'
-    compile 'org.starchartlabs.alloy:alloy-core'
+    api project(':helsing-core')
+    api 'com.github.javaparser:javaparser-core'
+    api 'info.picocli:picocli'
+    api 'org.ow2.asm:asm'
+    api 'org.slf4j:slf4j-api'
+    api 'org.starchartlabs.alloy:alloy-core'
     
     capsuleRuntime 'org.slf4j:slf4j-simple'
     
-    testCompile 'org.testng:testng'
-    testCompile 'uk.org.lidalia:slf4j-test'
-    
-    testRuntime project(':helsing-test-project')
+    testImplementation project(':helsing-test-project')
+    testImplementation 'org.testng:testng'
+    testImplementation 'uk.org.lidalia:slf4j-test'
 }
 
 // Configure tests with directory for test project
