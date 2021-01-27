@@ -6,7 +6,7 @@
  * http://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
- *    romeara - initial API and implementation and/or initial documentation
+ * romeara - initial API and implementation and/or initial documentation
  */
 package org.starchartlabs.helsing.core.ast;
 
@@ -16,11 +16,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.starchartlabs.helsing.core.model.ClassUseConsumer;
 
 import com.github.javaparser.JavaParser;
@@ -37,7 +39,10 @@ import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.visitor.GenericVisitorAdapter;
 import com.github.javaparser.printer.YamlPrinter;
 
-public class CompilationUnitVisitor implements Consumer<String> {
+public class CompilationUnitVisitor implements BiConsumer<String, String> {
+
+    /** Logger reference to output information to the application log files */
+    private final Logger logger = LoggerFactory.getLogger(getClass());
 
     private final ClassUseConsumer referenceConsumer;
 
@@ -53,7 +58,7 @@ public class CompilationUnitVisitor implements Consumer<String> {
     }
 
     @Override
-    public void accept(String contents) {
+    public void accept(String contents, String filePath) {
         Objects.requireNonNull(contents);
 
         ParseResult<CompilationUnit> parseResult = parser.parse(contents);
@@ -64,52 +69,58 @@ public class CompilationUnitVisitor implements Consumer<String> {
 
             compilationUnit.accept(fieldAccessVisitor, null);
 
-            String currentClassName = getQualifiedName(compilationUnit);
+            if (compilationUnit.getTypes().size() > 0) {
+                String currentClassName = getQualifiedName(compilationUnit);
 
-            referenceConsumer.recordClassTracing(currentClassName,
-                    () -> "AST Tree: " + yamlPrinter.output(compilationUnit));
+                referenceConsumer.recordClassTracing(currentClassName,
+                        () -> "AST Tree: " + yamlPrinter.output(compilationUnit));
 
-            // Find direct imports of classes
-            Collection<String> nonStaticImports = findNonStaticImports(referenceConsumer.getUnusedClasses(),
-                    compilationUnit);
-            String importUse = currentClassName + " import";
+                // Find direct imports of classes
+                Collection<String> nonStaticImports = findNonStaticImports(referenceConsumer.getUnusedClasses(),
+                        compilationUnit);
+                String importUse = currentClassName + " import";
 
-            nonStaticImports.stream()
-            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, importUse));
+                nonStaticImports.stream()
+                        .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, importUse));
 
-            // Deal with static import case
-            Collection<String> staticImports = findStaticImports(referenceConsumer.getUnusedClasses(), compilationUnit);
-            String staticImportUse = currentClassName + " static import";
+                // Deal with static import case
+                Collection<String> staticImports = findStaticImports(referenceConsumer.getUnusedClasses(), compilationUnit);
+                String staticImportUse = currentClassName + " static import";
 
-            staticImports.stream()
-            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, staticImportUse));
+                staticImports.stream()
+                        .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, staticImportUse));
 
-            // Find uses of classes by simple name
-            Map<String, String> allowedSimpleNameReferences = getValidSimpleNameReferences(
-                    referenceConsumer.getUnusedClasses(),
-                    compilationUnit);
+                // Find uses of classes by simple name
+                Map<String, String> allowedSimpleNameReferences = getValidSimpleNameReferences(
+                        referenceConsumer.getUnusedClasses(),
+                        compilationUnit);
 
-            // Find uses of classes by fully qualified name
-            Set<String> fieldClassesAccess = fieldAccessVisitor.getFieldClassesAccessed();
+                // Find uses of classes by fully qualified name
+                Set<String> fieldClassesAccess = fieldAccessVisitor.getFieldClassesAccessed();
 
-            // Record fully qualified uses
-            Collection<String> fullyQualfiedAccess = referenceConsumer.getUnusedClasses().stream()
-                    .filter(fieldClassesAccess::contains)
-                    .collect(Collectors.toSet());
-            String qualifiedUse = currentClassName + " fully qualified reference";
+                // Record fully qualified uses
+                Collection<String> fullyQualfiedAccess = referenceConsumer.getUnusedClasses().stream()
+                        .filter(fieldClassesAccess::contains)
+                        .collect(Collectors.toSet());
+                String qualifiedUse = currentClassName + " fully qualified reference";
 
-            fullyQualfiedAccess.stream()
-            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, qualifiedUse));
+                fullyQualfiedAccess.stream()
+                        .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, qualifiedUse));
 
-            // Record simple name uses
-            Collection<String> simpleNameAccess = referenceConsumer.getUnusedClasses().stream()
-                    .filter(allowedSimpleNameReferences::containsKey)
-                    .filter(classToFind -> fieldClassesAccess.contains(allowedSimpleNameReferences.get(classToFind)))
-                    .collect(Collectors.toSet());
-            String simpleNameUse = currentClassName + " simple name reference";
+                // Record simple name uses
+                Collection<String> simpleNameAccess = referenceConsumer.getUnusedClasses().stream()
+                        .filter(allowedSimpleNameReferences::containsKey)
+                        .filter(classToFind -> fieldClassesAccess.contains(allowedSimpleNameReferences.get(classToFind)))
+                        .collect(Collectors.toSet());
+                String simpleNameUse = currentClassName + " simple name reference";
 
-            simpleNameAccess.stream()
-            .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, simpleNameUse));
+                simpleNameAccess.stream()
+                        .forEach(used -> referenceConsumer.recordUsedClass(used, currentClassName, simpleNameUse));
+            } else {
+                // Log file without valid types
+                // TODO reduce log level?
+                logger.info("Found Java file with no valid types: {}", filePath);
+            }
         } else {
             throw new ParseProblemException(parseResult.getProblems());
         }

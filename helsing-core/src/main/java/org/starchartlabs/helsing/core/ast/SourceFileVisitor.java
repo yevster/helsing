@@ -6,7 +6,7 @@
  * http://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
- *    romeara - initial API and implementation and/or initial documentation
+ * romeara - initial API and implementation and/or initial documentation
  */
 package org.starchartlabs.helsing.core.ast;
 
@@ -18,7 +18,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -26,11 +26,11 @@ public class SourceFileVisitor extends SimpleFileVisitor<Path> {
 
     private static final String SOURCE_FILE_REGEX = ".*\\.java";
 
-    private final Consumer<String> sourceVisitor;
+    private final BiConsumer<String, String> sourceVisitor;
 
     private final Predicate<Path> fileFilter;
 
-    public SourceFileVisitor(Consumer<String> sourceVisitor, Predicate<Path> fileFilter) {
+    public SourceFileVisitor(BiConsumer<String, String> sourceVisitor, Predicate<Path> fileFilter) {
         this.sourceVisitor = Objects.requireNonNull(sourceVisitor);
         this.fileFilter = Objects.requireNonNull(fileFilter);
     }
@@ -44,7 +44,7 @@ public class SourceFileVisitor extends SimpleFileVisitor<Path> {
             String contents = Files.readAllLines(file, StandardCharsets.UTF_8).stream()
                     .collect(Collectors.joining("\n"));
 
-            sourceVisitor.accept(contents);
+            sourceVisitor.accept(contents, file.toString());
         }
 
         return FileVisitResult.CONTINUE;
