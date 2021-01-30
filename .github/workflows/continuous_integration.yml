@@ -1,12 +1,13 @@
 name: Java CI
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
-
+    
     runs-on: ubuntu-latest
-
+    env:
+      CODECOV_BYPASS: false
     steps:
     - uses: actions/checkout@v1
     - name: Set up JDK 1.8
@@ -16,6 +17,7 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew build
     - name: CodeCov
+      if: ${{!env.CODECOV_BYPASS}}
       uses: codecov/codecov-action@v1.0.2
       with:
         token: ${{secrets.CODECOV_UPLOAD_TOKEN}}
