@@ -1,13 +1,21 @@
 name: Java CI
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      bypass_copilot:
+        default: false
+      bypass_codecov:
+        default: false
+      
 
 jobs:
   build:
     
     runs-on: ubuntu-latest
-    env:
-      CODECOV_BYPASS: false
+  
     steps:
     - uses: actions/checkout@v1
     - name: Set up JDK 1.8
@@ -17,12 +25,12 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew build
     - name: CodeCov
-      if: ${{!env.CODECOV_BYPASS}}
+      if: ${{!inputs.bypass_codecov}}
       uses: codecov/codecov-action@v1.0.2
       with:
         token: ${{secrets.CODECOV_UPLOAD_TOKEN}}
     - name: Upload to CoPilot
-      if: github.event_name == 'push' || github.event_name == 'pull_request'
+      if: (github.event_name == 'push' || github.event_name == 'pull_request') && ${{!inputs.bypass_copilot}}
       run: bash <(curl -s https://copilot.blackducksoftware.com/ci/githubactions/scripts/upload)
   validation:
     name: "Validate Gradle Wrapper"
